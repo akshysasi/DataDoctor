@@ -4,6 +4,40 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>DataDoctor</title>
+    <style>
+        body {
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 0 20px;
+            font-family: Arial, sans-serif;
+            color: #222;
+        }
+        section {
+            margin-top: 24px;
+            padding: 18px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 9px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background: #f3f5f7;
+        }
+        .error {
+            color: #b00020;
+        }
+        pre {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+    </style>
 </head>
 <body>
     <h1>DataDoctor</h1>
@@ -15,12 +49,45 @@
     </form>
 
     {% if error %}
-        <p style="color: red;">{{ error }}</p>
+        <p class="error">{{ error }}</p>
     {% endif %}
 
     {% if report %}
-        <h2>Analysis results</h2>
-        <pre>{{ report }}</pre>
+        <section>
+            <h2>Dataset overview</h2>
+            <p><strong>Rows:</strong> {{ report.rows }}</p>
+            <p><strong>Columns:</strong> {{ report.columns }}</p>
+            <p><strong>Duplicate rows:</strong> {{ report.duplicate_rows }}</p>
+        </section>
+
+        <section>
+            <h2>Missing values</h2>
+            <table>
+                <tr><th>Column</th><th>Missing</th><th>Percent</th></tr>
+                {% for column, values in report.missing_values.items() %}
+                    <tr>
+                        <td>{{ column }}</td>
+                        <td>{{ values.count }}</td>
+                        <td>{{ values.percentage }}%</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </section>
+
+        <section>
+            <h2>Data types</h2>
+            <table>
+                <tr><th>Column</th><th>Type</th></tr>
+                {% for column, data_type in report.data_types.items() %}
+                    <tr><td>{{ column }}</td><td>{{ data_type }}</td></tr>
+                {% endfor %}
+            </table>
+        </section>
+
+        <section>
+            <h2>Full summary</h2>
+            <pre>{{ report.summary }}</pre>
+        </section>
     {% endif %}
 </body>
 </html>
