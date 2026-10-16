@@ -84,9 +84,22 @@
             </table>
         </section>
 
-        <section>
-            <h2>Full summary</h2>
-            <pre>{{ report.summary }}</pre>
+                <section>
+            <h2>Other checks</h2>
+
+            <h3>Constant columns</h3>
+            {% if report.constant_columns %}
+                <p>{{ report.constant_columns }}</p>
+            {% else %}
+                <p>None found.</p>
+            {% endif %}
+
+            <h3>Potential outliers</h3>
+            {% if report.potential_outliers %}
+                <pre>{{ report.potential_outliers }}</pre>
+            {% else %}
+                <p>None found.</p>
+            {% endif %}
         </section>
     {% endif %}
 </body>
