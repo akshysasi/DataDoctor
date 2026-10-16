@@ -84,7 +84,7 @@
             </table>
         </section>
 
-                <section>
+        <section>
             <h2>Other checks</h2>
 
             <h3>Constant columns</h3>
@@ -100,6 +100,22 @@
             {% else %}
                 <p>None found.</p>
             {% endif %}
+        </section>
+
+        <section>
+            <h2>Summary statistics</h2>
+
+            {% for column, stats in report.summary.items() %}
+                <h3>{{ column }}</h3>
+                <table>
+                    <tr><th>Statistic</th><th>Value</th></tr>
+                    {% for name, value in stats.items() %}
+                        {% if value != '' %}
+                            <tr><td>{{ name }}</td><td>{{ value }}</td></tr>
+                        {% endif %}
+                    {% endfor %}
+                </table>
+            {% endfor %}
         </section>
     {% endif %}
 </body>
