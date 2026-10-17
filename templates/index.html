@@ -101,6 +101,32 @@
                 <p>None found.</p>
             {% endif %}
         </section>
+        
+                <section>
+            <h2>Numeric correlations</h2>
+
+            {% if report.correlations %}
+                <table>
+                    <tr>
+                        <th>Column</th>
+                        {% for column in report.correlations.keys() %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+
+                    {% for row_name, values in report.correlations.items() %}
+                        <tr>
+                            <th>{{ row_name }}</th>
+                            {% for value in values.values() %}
+                                <td>{{ value }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p>No numeric columns to compare.</p>
+            {% endif %}
+        </section>
 
         <section>
             <h2>Summary statistics</h2>
