@@ -54,6 +54,26 @@
 
     {% if report %}
         <section>
+            <h2>Data preview</h2>
+            <p>Showing up to the first 10 rows.</p>
+
+            <table>
+                <tr>
+                    {% for column in preview_columns %}
+                        <th>{{ column }}</th>
+                    {% endfor %}
+                </tr>
+                {% for row in preview_rows %}
+                    <tr>
+                        {% for column in preview_columns %}
+                            <td>{{ row[column] }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
+        </section>
+
+        <section>
             <h2>Dataset overview</h2>
             <p><strong>Rows:</strong> {{ report.rows }}</p>
             <p><strong>Columns:</strong> {{ report.columns }}</p>
@@ -101,10 +121,9 @@
                 <p>None found.</p>
             {% endif %}
         </section>
-        
-                <section>
-            <h2>Numeric correlations</h2>
 
+        <section>
+            <h2>Numeric correlations</h2>
             {% if report.correlations %}
                 <table>
                     <tr>
@@ -113,7 +132,6 @@
                             <th>{{ column }}</th>
                         {% endfor %}
                     </tr>
-
                     {% for row_name, values in report.correlations.items() %}
                         <tr>
                             <th>{{ row_name }}</th>
@@ -130,7 +148,6 @@
 
         <section>
             <h2>Summary statistics</h2>
-
             {% for column, stats in report.summary.items() %}
                 <h3>{{ column }}</h3>
                 <table>
