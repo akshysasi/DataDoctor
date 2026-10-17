@@ -9,6 +9,8 @@ app = Flask(__name__)
 def index():
     report = None
     error = None
+    preview_columns = []
+    preview_rows = []
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
@@ -19,10 +21,18 @@ def index():
             try:
                 df = pd.read_csv(uploaded_file)
                 report = analyze_dataset(df)
+                preview_columns = df.columns.tolist()
+                preview_rows = df.head(10).to_dict(orient="records")
             except Exception as exc:
                 error = f"Could not analyze that CSV: {exc}"
 
-    return render_template("index.html", report=report, error=error)
+    return render_template(
+    "index.html",
+    report=report,
+    error=error,
+    preview_columns=preview_columns,
+    preview_rows=preview_rows,
+)
 
 
 if __name__ == "__main__":
