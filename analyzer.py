@@ -52,8 +52,13 @@ def analyze_dataset(df):
         if count > 0:
             outliers[col] = count
 
-    # 6. Statistical summary
+    
+    # 6. Statistical summary and numeric correlations
+
     summary = df.describe(include="all").fillna("").to_dict()
+
+    numeric_data = df.select_dtypes(include=np.number)
+    correlations = numeric_data.corr().round(2).fillna("")
 
     # 7. Build the report
     report = {
@@ -71,6 +76,7 @@ def analyze_dataset(df):
         "constant_columns": constant_columns,
         "potential_outliers": outliers,
         "summary": summary,
+        "correlations": correlations.to_dict(),
     }
 
     return report
