@@ -60,7 +60,27 @@ def analyze_dataset(df):
     numeric_data = df.select_dtypes(include=np.number)
     correlations = numeric_data.corr().round(2).fillna("")
 
-    # 7. Build the report
+    # 7. Suggested actions
+    suggestions = []
+
+    if duplicate_count > 0:
+        suggestions.append(
+            f"Review the {duplicate_count} duplicate row(s)."
+        )
+
+    for col in df.columns:
+        missing_count = int(missing[col])
+        if missing_count > 0:
+            suggestions.append(
+                f"Review the {missing_count} missing value(s) in '{col}'."
+            )
+
+    for col, count in outliers.items():
+        suggestions.append(
+            f"Review the {count} potential outlier(s) in '{col}'."
+        )
+
+    # 8. Build the report
     report = {
         "rows": rows,
         "columns": columns,
@@ -77,6 +97,7 @@ def analyze_dataset(df):
         "potential_outliers": outliers,
         "summary": summary,
         "correlations": correlations.to_dict(),
+        "suggestions": suggestions,
     }
 
     return report
