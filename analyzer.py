@@ -102,6 +102,14 @@ def analyze_dataset(df):
 
     return report
 
+def clean_dataset(df, remove_duplicates=False):
+    """Return a cleaned copy of a DataFrame."""
+    cleaned_df = df.copy()
+
+    if remove_duplicates:
+        cleaned_df = cleaned_df.drop_duplicates()
+
+    return cleaned_df
 
 if __name__ == "__main__":
     # Temporary test dataset
