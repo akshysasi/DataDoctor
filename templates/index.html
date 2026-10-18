@@ -123,6 +123,20 @@
         </section>
 
         <section>
+            <h2>Suggested actions</h2>
+
+            {% if report.suggestions %}
+                <ul>
+                    {% for suggestion in report.suggestions %}
+                        <li>{{ suggestion }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No issues need attention based on these checks.</p>
+            {% endif %}
+        </section>
+
+        <section>
             <h2>Numeric correlations</h2>
             {% if report.correlations %}
                 <table>
