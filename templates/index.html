@@ -33,6 +33,10 @@
         .error {
             color: #b00020;
         }
+        button {
+            margin: 12px 8px 0 0;
+            padding: 8px 12px;
+        }
         pre {
             white-space: pre-wrap;
             overflow-wrap: anywhere;
@@ -44,8 +48,21 @@
     <p>Upload a CSV file to check its data quality.</p>
 
     <form method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".csv" required>
-        <button type="submit">Analyze CSV</button>
+        <p><input type="file" name="file" accept=".csv" required></p>
+
+        <p>
+            <label>
+                <input type="checkbox" name="remove_duplicates" value="yes">
+                Remove duplicate rows in the downloaded copy
+            </label>
+        </p>
+
+        <button type="submit" name="action" value="analyze">
+            Analyze CSV
+        </button>
+        <button type="submit" name="action" value="download">
+            Download cleaned CSV
+        </button>
     </form>
 
     {% if error %}
@@ -56,7 +73,6 @@
         <section>
             <h2>Data preview</h2>
             <p>Showing up to the first 10 rows.</p>
-
             <table>
                 <tr>
                     {% for column in preview_columns %}
@@ -124,7 +140,6 @@
 
         <section>
             <h2>Suggested actions</h2>
-
             {% if report.suggestions %}
                 <ul>
                     {% for suggestion in report.suggestions %}
