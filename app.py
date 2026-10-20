@@ -28,9 +28,12 @@ def index():
                     remove_duplicates = (
                         request.form.get("remove_duplicates") == "yes"
                     )
+                    drop_missing = request.form.get("drop_missing") == "yes"
+
                     cleaned_df = clean_dataset(
                         df,
                         remove_duplicates=remove_duplicates,
+                        drop_missing=drop_missing,
                     )
 
                     output = BytesIO()
