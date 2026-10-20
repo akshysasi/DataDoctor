@@ -102,12 +102,15 @@ def analyze_dataset(df):
 
     return report
 
-def clean_dataset(df, remove_duplicates=False):
+def clean_dataset(df, remove_duplicates=False, drop_missing=False):
     """Return a cleaned copy of a DataFrame."""
     cleaned_df = df.copy()
 
     if remove_duplicates:
         cleaned_df = cleaned_df.drop_duplicates()
+
+    if drop_missing:
+        cleaned_df = cleaned_df.dropna()
 
     return cleaned_df
 
