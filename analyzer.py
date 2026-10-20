@@ -102,12 +102,25 @@ def analyze_dataset(df):
 
     return report
 
-def clean_dataset(df, remove_duplicates=False, drop_missing=False):
+def clean_dataset(
+    df,
+    remove_duplicates=False,
+    drop_missing=False,
+    fill_numeric_missing=False,
+):
     """Return a cleaned copy of a DataFrame."""
     cleaned_df = df.copy()
 
     if remove_duplicates:
         cleaned_df = cleaned_df.drop_duplicates()
+
+    if fill_numeric_missing:
+        numeric_columns = cleaned_df.select_dtypes(include=np.number).columns
+
+        for column in numeric_columns:
+            median_value = cleaned_df[column].median()
+            if pd.notna(median_value):
+                cleaned_df[column] = cleaned_df[column].fillna(median_value)
 
     if drop_missing:
         cleaned_df = cleaned_df.dropna()
