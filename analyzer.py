@@ -107,6 +107,7 @@ def clean_dataset(
     remove_duplicates=False,
     drop_missing=False,
     fill_numeric_missing=False,
+    fill_text_missing=False,
 ):
     """Return a cleaned copy of a DataFrame."""
     cleaned_df = df.copy()
@@ -121,6 +122,16 @@ def clean_dataset(
             median_value = cleaned_df[column].median()
             if pd.notna(median_value):
                 cleaned_df[column] = cleaned_df[column].fillna(median_value)
+
+    if fill_text_missing:
+        text_columns = cleaned_df.select_dtypes(exclude=np.number).columns
+
+        for column in text_columns:
+            most_common = cleaned_df[column].mode(dropna=True)
+            if not most_common.empty:
+                cleaned_df[column] = cleaned_df[column].fillna(
+                    most_common.iloc[0]
+                )
 
     if drop_missing:
         cleaned_df = cleaned_df.dropna()
