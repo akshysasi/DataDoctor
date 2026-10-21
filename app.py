@@ -25,26 +25,30 @@ def index():
                 df = pd.read_csv(uploaded_file)
 
                 if request.form.get("action") == "download":
-                    remove_duplicates = (
+                        remove_duplicates = (
                         request.form.get("remove_duplicates") == "yes"
                     )
-                    drop_missing = request.form.get("drop_missing") == "yes"
+                        drop_missing = request.form.get("drop_missing") == "yes"
+                        fill_numeric_missing = (
+                        request.form.get("fill_numeric_missing") == "yes"
+                    )
 
-                    cleaned_df = clean_dataset(
+                        cleaned_df = clean_dataset(
                         df,
                         remove_duplicates=remove_duplicates,
                         drop_missing=drop_missing,
+                        fill_numeric_missing=fill_numeric_missing,
                     )
 
-                    output = BytesIO()
-                    cleaned_df.to_csv(
+                        output = BytesIO()
+                        cleaned_df.to_csv(
                         output,
                         index=False,
                         encoding="utf-8-sig",
                     )
-                    output.seek(0)
+                        output.seek(0)
 
-                    return send_file(
+                        return send_file(
                         output,
                         mimetype="text/csv",
                         as_attachment=True,
@@ -68,4 +72,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True)                
