@@ -17,6 +17,8 @@ def index():
     cleaning_preview = False
     rows_before = 0
     rows_after = 0
+    missing_before = 0
+    missing_after = 0
     cleaned_preview_columns = []
     cleaned_preview_rows = []
 
@@ -72,6 +74,8 @@ def index():
                     cleaning_preview = True
                     rows_before = len(df)
                     rows_after = len(cleaned_df)
+                    missing_before = int(df.isna().sum().sum())
+                    missing_after = int(cleaned_df.isna().sum().sum())
                     cleaned_preview_columns = cleaned_df.columns.tolist()
                     cleaned_preview_rows = cleaned_df.head(10).to_dict(
                         orient="records"
@@ -91,6 +95,8 @@ def index():
         rows_after=rows_after,
         cleaned_preview_columns=cleaned_preview_columns,
         cleaned_preview_rows=cleaned_preview_rows,
+        missing_before=missing_before,
+        missing_after=missing_after,
     )
 
 
