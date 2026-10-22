@@ -56,18 +56,21 @@
                 Remove duplicate rows in the downloaded copy
             </label>
         </p>
+
         <p>
             <label>
                 <input type="checkbox" name="drop_missing" value="yes">
                 Drop rows with any missing values in the downloaded copy
             </label>
         </p>
+
         <p>
             <label>
                 <input type="checkbox" name="fill_numeric_missing" value="yes">
                 Fill blank numeric cells with their column median in the downloaded copy
             </label>
         </p>
+
         <p>
             <label>
                 <input type="checkbox" name="fill_text_missing" value="yes">
@@ -77,6 +80,9 @@
 
         <button type="submit" name="action" value="analyze">
             Analyze CSV
+        </button>
+        <button type="submit" name="action" value="preview">
+            Preview cleaning
         </button>
         <button type="submit" name="action" value="download">
             Download cleaned CSV
@@ -90,7 +96,7 @@
     {% if report %}
         <section>
             <h2>Data preview</h2>
-            <p>Showing up to the first 10 rows.</p>
+            <p>Showing up to the first 10 original rows.</p>
             <table>
                 <tr>
                     {% for column in preview_columns %}
@@ -106,6 +112,30 @@
                 {% endfor %}
             </table>
         </section>
+
+        {% if cleaning_preview %}
+            <section>
+                <h2>Cleaning preview</h2>
+                <p><strong>Rows before:</strong> {{ rows_before }}</p>
+                <p><strong>Rows after:</strong> {{ rows_after }}</p>
+                <p>Showing up to the first 10 cleaned rows.</p>
+
+                <table>
+                    <tr>
+                        {% for column in cleaned_preview_columns %}
+                            <th>{{ column }}</th>
+                        {% endfor %}
+                    </tr>
+                    {% for row in cleaned_preview_rows %}
+                        <tr>
+                            {% for column in cleaned_preview_columns %}
+                                <td>{{ row[column] }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            </section>
+        {% endif %}
 
         <section>
             <h2>Dataset overview</h2>
