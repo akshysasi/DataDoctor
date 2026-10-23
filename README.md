@@ -31,4 +31,4 @@ Open a terminal in the project folder and run:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install Flask pandas numpy
+python -m pip install -r requirements.txt
