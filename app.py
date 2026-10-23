@@ -5,8 +5,20 @@ import pandas as pd
 
 from analyzer import analyze_dataset, clean_dataset
 
+from werkzeug.exceptions import RequestEntityTooLarge
+
 app = Flask(__name__)
 
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(error):
+    return render_template(
+        "index.html",
+        report=None,
+        error="That file is too large. Please choose a CSV smaller than 16 MB.",
+    ), 413
 
 @app.route("/", methods=["GET", "POST"])
 def index():
