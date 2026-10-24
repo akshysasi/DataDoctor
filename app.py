@@ -39,6 +39,8 @@ def index():
 
         if uploaded_file is None or uploaded_file.filename == "":
             error = "Choose a CSV file first."
+        elif not uploaded_file.filename.lower().endswith(".csv"):
+            error = "Please choose a file with a .csv extension."
         else:
             try:
                 df = pd.read_csv(uploaded_file)
