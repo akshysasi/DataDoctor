@@ -242,6 +242,29 @@ def clean_dataset(
 
     return cleaned_df
 
+
+def fill_missing_values(df, numeric_strategy="median"):
+    """Return a copy with numeric gaps filled by mean/median and other gaps by mode."""
+    if numeric_strategy not in {"mean", "median"}:
+        raise ValueError("numeric_strategy must be 'mean' or 'median'")
+
+    cleaned_df = df.copy()
+    numeric_columns = cleaned_df.select_dtypes(include=np.number).columns
+    other_columns = cleaned_df.columns.difference(numeric_columns, sort=False)
+
+    for column in numeric_columns:
+        values = cleaned_df[column]
+        fill_value = values.mean() if numeric_strategy == "mean" else values.median()
+        if pd.notna(fill_value):
+            cleaned_df[column] = values.fillna(fill_value)
+
+    for column in other_columns:
+        mode = cleaned_df[column].mode(dropna=True)
+        if not mode.empty:
+            cleaned_df[column] = cleaned_df[column].fillna(mode.iloc[0])
+
+    return cleaned_df
+
 if __name__ == "__main__":
     # Temporary test dataset
     sample_data = {

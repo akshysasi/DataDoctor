@@ -4,7 +4,7 @@ from secrets import token_hex
 from flask import Flask, render_template, request, send_file, session
 import pandas as pd
 
-from analyzer import analyze_dataset
+from analyzer import analyze_dataset, fill_missing_values
 
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -43,10 +43,17 @@ def index():
     original_df = None
     duplicate_rows = 0
     can_undo = False
+    missing_cells = 0
+    missing_preview_columns = []
+    missing_preview_rows = []
+    missing_preview = False
+    missing_cells_after = 0
+    numeric_strategy = "median"
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
         action = request.form.get("action", "analyze")
+        numeric_strategy = request.form.get("numeric_strategy", "median")
 
         try:
             if uploaded_file is not None and uploaded_file.filename and action == "analyze":
@@ -70,7 +77,13 @@ def index():
                 if action == "apply_duplicates":
                     state["undo"] = state["current"].copy()
                     state["current"] = state["current"].drop_duplicates().reset_index(drop=True)
-                elif action == "undo_duplicates" and state["undo"] is not None:
+                elif action == "apply_missing":
+                    state["undo"] = state["current"].copy()
+                    state["current"] = fill_missing_values(
+                        state["current"],
+                        numeric_strategy=numeric_strategy,
+                    )
+                elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
                 elif action == "reset_dataset":
@@ -92,6 +105,15 @@ def index():
                 rows_after = len(active_df) - duplicate_rows
                 missing_before = int(active_df.isna().sum().sum())
                 missing_after = missing_before
+                missing_cells = missing_before
+                missing_cells_after = missing_before
+                missing_preview = action == "preview_missing"
+                if missing_preview:
+                    proposed_df = fill_missing_values(active_df, numeric_strategy=numeric_strategy)
+                    affected = active_df.isna().any(axis=1)
+                    missing_preview_columns = proposed_df.columns.tolist()
+                    missing_preview_rows = proposed_df.loc[affected].head(10).to_dict(orient="records")
+                    missing_cells_after = int(proposed_df.isna().sum().sum())
                 cleaned_preview_columns = active_df.columns.tolist()
                 cleaned_preview_rows = active_df.loc[~active_df.duplicated(keep="first")].head(10).to_dict(orient="records")
                 if action == "download":
@@ -116,6 +138,8 @@ def index():
         duplicate_preview = active_df.loc[active_df.duplicated(keep="first")]
         duplicate_preview_columns = duplicate_preview.columns.tolist()
         duplicate_preview_rows = duplicate_preview.head(10).to_dict(orient="records")
+        missing_cells = int(active_df.isna().sum().sum())
+        missing_cells_after = missing_cells
 
     return render_template(
         "index.html",
@@ -137,6 +161,12 @@ def index():
         can_undo=can_undo,
         active_rows=len(active_df) if active_df is not None else 0,
         original_rows=len(original_df) if original_df is not None else 0,
+        missing_cells=missing_cells,
+        missing_preview=missing_preview,
+        missing_preview_columns=missing_preview_columns,
+        missing_preview_rows=missing_preview_rows,
+        missing_cells_after=missing_cells_after,
+        numeric_strategy=numeric_strategy,
     )
 
 
