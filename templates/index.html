@@ -1,244 +1,41 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DataDoctor</title>
-    <style>
-        body {
-            max-width: 850px;
-            margin: 40px auto;
-            padding: 0 20px;
-            font-family: Arial, sans-serif;
-            color: #222;
-        }
-        section {
-            margin-top: 24px;
-            padding: 18px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 9px;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-        th {
-            background: #f3f5f7;
-        }
-        .error {
-            color: #b00020;
-        }
-        button {
-            margin: 12px 8px 0 0;
-            padding: 8px 12px;
-        }
-        pre {
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-        }
-    </style>
-</head>
-<body>
-    <h1>DataDoctor</h1>
-    <p>Upload a CSV file to check its data quality.</p>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1016"><title>DataDoctor — Data quality workspace</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1016;--panel:#111922;--panel2:#151f29;--line:#23313d;--muted:#91a1ae;--text:#edf4f6;--teal:#48e0c0;--blue:#78aaff;--amber:#ffc56c;--red:#ff7c86;--radius:18px;font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 65% -25%,#123437 0,transparent 42%),var(--bg);color:var(--text)}button,input{font:inherit}a{color:inherit;text-decoration:none}.shell{min-height:100vh}.sidebar{position:fixed;inset:0 auto 0 0;width:244px;padding:25px 17px;background:#0d141bdd;border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:5;backdrop-filter:blur(16px)}.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 30px;font-size:17px;font-weight:750;letter-spacing:-.4px}.brand-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;color:#091714;background:linear-gradient(145deg,#7af0d5,#31c9ae);box-shadow:0 5px 20px #36d6ba30}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase}.nav-label{padding:9px 10px;color:#70808d;font-size:10px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase}.nav a{display:flex;align-items:center;gap:12px;margin:3px 0;padding:10px;border:1px solid transparent;border-radius:10px;color:#aab8c2;transition:.18s}.nav a:hover,.nav a.active{background:#17242b;border-color:#263a40;color:#efffff}.nav a.active .nav-icon{color:var(--teal)}.nav-icon{width:18px;text-align:center;color:#7f939f}.side-bottom{margin-top:auto}.privacy{padding:13px;border:1px solid #22352f;background:#111d1b;border-radius:13px;color:#b5c9c2;font-size:12px}.privacy b{display:block;color:#e8f5ef;font-size:12px;margin-bottom:3px}.privacy span{color:var(--teal)}main{margin-left:244px;max-width:1600px;padding:31px clamp(22px,4vw,58px) 70px}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}.crumb{font-size:12px;color:var(--muted)}.crumb b{color:#dce5ea;font-weight:550}.top-actions{display:flex;align-items:center;gap:10px}.local-pill{padding:7px 10px;border:1px solid var(--line);border-radius:99px;color:#aab9c2;font-size:11px}.local-pill i{display:inline-block;width:6px;height:6px;background:var(--teal);border-radius:99px;margin-right:6px}.avatar{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#1d3033;color:var(--teal);font-weight:700}.heading{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:22px}.eyebrow{font-size:11px;letter-spacing:1.7px;color:var(--teal);font-weight:750;text-transform:uppercase}h1{font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-1.5px;margin:8px 0}h2{font-size:16px;letter-spacing:-.3px;margin:0}p{margin:0;color:var(--muted)}.heading p{font-size:13px}.button{border:1px solid #355b55;background:linear-gradient(135deg,#53e3c2,#35bea6);color:#06201b;font-weight:750;padding:11px 15px;border-radius:10px;cursor:pointer;transition:.18s}.button:hover{filter:brightness(1.1);transform:translateY(-1px)}.button.secondary{background:#17222b;border-color:#2b3b47;color:#d9e5e8}.button:disabled{opacity:.55;cursor:wait}.upload{position:relative;display:flex;align-items:center;gap:18px;padding:19px 22px;margin-bottom:18px;border:1px dashed #3b5f5c;border-radius:var(--radius);background:linear-gradient(110deg,#12201f,#111922 58%);transition:.2s}.upload.drag{border-color:var(--teal);background:#15302c}.upload-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid #30514a;border-radius:13px;background:#19312c;color:var(--teal);font-size:19px}.upload-copy{min-width:0;flex:1}.upload-copy b{display:block;font-size:13px}.upload-copy p{font-size:12px;margin-top:3px}.upload-copy .filename{color:var(--teal)}.file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.file-label{cursor:pointer;white-space:nowrap}.alert{margin:0 0 18px;padding:12px 15px;border-radius:11px;color:#ffdce0;background:#341d24;border:1px solid #61313a}.dataset-line{display:flex;align-items:center;gap:9px;margin:21px 0 13px;color:var(--muted);font-size:12px}.dataset-line b{color:#e5ecee;font-size:13px}.dataset-line .tag{border:1px solid #2b3d46;background:#14202a;border-radius:6px;padding:3px 7px;color:#a5bac5;font-size:10px}.grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:15px}.card{background:linear-gradient(150deg,#141e28,#111820);border:1px solid var(--line);border-radius:var(--radius);padding:18px;min-width:0;box-shadow:0 8px 30px #00000012}.kpi-top{display:flex;justify-content:space-between;align-items:center;color:#a6b5bf;font-size:12px}.kpi-mark{display:grid;place-items:center;width:29px;height:29px;border-radius:9px;background:#1d3033;color:var(--teal)}.kpi-value{font-size:29px;letter-spacing:-1.2px;font-weight:740;margin:9px 0 3px}.kpi-foot{font-size:11px;color:var(--muted)}.kpi-foot.good{color:var(--teal)}.kpi-foot.warn{color:var(--amber)}.upper-grid{grid-template-columns:minmax(0,1.35fr) minmax(260px,.8fr);margin-bottom:15px}.panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.panel-head p{font-size:11px;margin-top:3px}.subtle{font-size:10px;color:#8c9ca7;padding:5px 8px;border:1px solid var(--line);border-radius:7px}.chart{height:230px}.health-wrap{display:flex;align-items:center;gap:23px;min-height:230px}.health-ring{width:138px;height:138px;position:relative;flex:none}.health-ring svg{transform:rotate(-90deg)}.health-ring circle{fill:none;stroke-width:10}.health-ring .track{stroke:#26343d}.health-ring .value{stroke:var(--teal);stroke-linecap:round;stroke-dasharray:339.3;stroke-dashoffset:var(--offset);filter:drop-shadow(0 0 5px #3cdebd66)}.health-num{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-size:33px;font-weight:750;letter-spacing:-1px}.health-num small{font-size:10px;color:var(--muted);letter-spacing:.5px;font-weight:550}.health-copy b{font-size:14px}.health-copy p{font-size:12px;margin-top:6px}.health-copy .legend{display:flex;gap:8px;align-items:center;font-size:11px;color:#b4c2ca;margin-top:15px}.dot{width:7px;height:7px;border-radius:50%;background:var(--teal)}.section-grid{grid-template-columns:minmax(0,1.2fr) minmax(270px,.8fr);margin-bottom:15px}.table-wrap{overflow:auto;max-height:425px;border:1px solid #25323c;border-radius:11px}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}th{position:sticky;top:0;background:#18232d;color:#b7c5ce;font-size:10px;text-transform:uppercase;letter-spacing:.6px;text-align:left;z-index:1}td,th{padding:11px 13px;border-bottom:1px solid #222f39}td{color:#d8e2e5}tbody tr:hover{background:#17242b}th.sortable{cursor:pointer}th.sortable:hover{color:var(--teal)}.issue-list{display:grid;gap:10px}.issue{display:flex;gap:11px;align-items:start;padding:11px;border:1px solid #25333d;border-radius:11px;background:#121c24}.issue-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:8px;flex:none;background:#392b1c;color:var(--amber)}.issue b{font-size:12px}.issue p{font-size:11px;margin-top:3px}.issue.clean .issue-icon{background:#17302c;color:var(--teal)}.issue.clean p{color:#9cbbb1}.mini-count{margin-left:auto;color:#e7b86f;font-size:11px;white-space:nowrap}.tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin-bottom:15px}.tab-btn{padding:9px 12px;background:none;border:0;border-bottom:2px solid transparent;color:#8798a3;font-size:12px;cursor:pointer}.tab-btn.active{color:var(--teal);border-color:var(--teal)}.tab-pane{display:none}.tab-pane.active{display:block}.options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0}.option{display:flex;gap:9px;align-items:start;padding:11px;border:1px solid #26343d;border-radius:10px;cursor:pointer}.option:hover{border-color:#426860}.option input{accent-color:#43d7b7;margin-top:3px}.option b{font-size:11px;display:block}.option span{font-size:10px;color:var(--muted)}.actions{display:flex;flex-wrap:wrap;gap:8px}.preview-stats{display:flex;gap:18px;margin:4px 0 14px;color:var(--muted);font-size:12px}.preview-stats b{color:#eff8f5}.empty{min-height:290px;display:grid;place-items:center;text-align:center;padding:30px}.empty-inner{max-width:420px}.empty-mark{margin:0 auto 17px;width:58px;height:58px;display:grid;place-items:center;border:1px solid #2c514a;border-radius:18px;background:#142722;color:var(--teal);font-size:25px}.empty h2{font-size:19px;margin-bottom:8px}.empty p{font-size:13px;line-height:1.7}.empty .button{margin-top:18px}.footer{margin-top:20px;text-align:center;color:#647681;font-size:10px}.mobile-menu{display:none}
+@media(max-width:1050px){.sidebar{width:210px}.main{margin-left:210px}main{margin-left:210px;padding-inline:25px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.section-grid,.upper-grid{grid-template-columns:1fr}.health-wrap{min-height:190px}}@media(max-width:700px){.sidebar{position:static;width:auto;height:auto;padding:12px 16px;border-right:0;border-bottom:1px solid var(--line);flex-direction:row;align-items:center;justify-content:space-between}.brand{padding:0}.nav-label,.nav,.side-bottom{display:none}.mobile-menu{display:block;background:transparent;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:7px 10px}.nav.open{position:absolute;display:block;top:62px;left:0;right:0;background:#0d141d;padding:12px 16px;border-bottom:1px solid var(--line)}.nav.open .nav-label{display:block}main{margin:0;padding:22px 15px 45px}.topbar{margin-bottom:25px}.heading{align-items:start;flex-direction:column}.heading .button{width:100%}.upload{padding:14px;gap:11px;flex-wrap:wrap}.upload-icon{width:38px;height:38px}.file-label{margin-left:49px}.kpis{gap:9px}.card{padding:14px;border-radius:14px}.kpi-value{font-size:24px}.kpi-top{font-size:11px}.health-wrap{gap:15px}.health-ring{width:116px;height:116px}.health-ring svg{width:116px;height:116px}.health-num{font-size:28px}.options{grid-template-columns:1fr}.dataset-line{flex-wrap:wrap}.top-actions .local-pill{display:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style></head>
+<body><div class="shell">
+<aside class="sidebar"><a class="brand" href="#top"><span class="brand-icon">✳</span><span>DataDoctor<small>quality workspace</small></span></a><button class="mobile-menu" id="mobileMenu" aria-label="Toggle navigation">☰</button><nav class="nav" id="nav"><div class="nav-label">Workspace</div><a class="active" href="#overview"><span class="nav-icon">◫</span>Overview</a><a href="#preview"><span class="nav-icon">▦</span>Data explorer</a><a href="#issues"><span class="nav-icon">⌁</span>Quality report</a><a href="#cleaning"><span class="nav-icon">✧</span>Cleaning studio</a><a href="#export"><span class="nav-icon">⇩</span>Export</a></nav><div class="side-bottom"><div class="privacy"><b><span>●</span> Private by design</b>Your CSV is analyzed locally by this app.</div></div></aside>
+<main id="top"><div class="topbar"><div class="crumb">Workspace <span> / </span> <b>Overview</b></div><div class="top-actions"><span class="local-pill"><i></i>Local analysis</span><div class="avatar">D</div></div></div>
+<div class="heading" id="overview"><div><div class="eyebrow">Data quality workspace</div><h1>See what your data is saying.</h1><p>Upload a CSV to surface quality issues and prepare a clean, reviewable export.</p></div>{% if report %}<a class="button secondary" href="#cleaning">✧ &nbsp;Open cleaning studio</a>{% endif %}</div>
+<form method="post" enctype="multipart/form-data" id="uploadForm"><input class="file-input" type="file" name="file" id="fileInput" accept=".csv,text/csv" required><div class="upload" id="dropZone"><div class="upload-icon">⇧</div><div class="upload-copy"><b id="uploadTitle">Drop your CSV here or <label class="filename" for="fileInput" style="cursor:pointer">browse files</label></b><p id="uploadHint">CSV files up to 16 MB · Your data stays in this app</p></div><label class="button secondary file-label" for="fileInput">Choose CSV</label><button class="button" type="submit" name="action" value="analyze" id="analyzeBtn">Analyze dataset&nbsp; ↗</button></div>
+{% if error %}<div class="alert" role="alert">⚠ &nbsp;{{ error }}</div>{% endif %}
+{% if report %}<div class="dataset-line"><span class="tag">ANALYZED FILE</span><b id="datasetName">{{ filename or 'Uploaded CSV' }}</b><span class="tag">{{ report.rows }} rows</span><span class="tag">{{ report.columns }} columns</span></div>
+{% set missing_total = report.missing_values.values()|sum(attribute='count') %}{% set outlier_total = report.potential_outliers.values()|sum %}{% set issue_count = missing_total + report.duplicate_rows + outlier_total %}{% set score = [0, 100 - (issue_count * 100 / ((report.rows * (report.columns or 1)) or 1))|round|int]|max %}
+<div class="grid kpis"><article class="card"><div class="kpi-top">Dataset health <span class="kpi-mark">✳</span></div><div class="kpi-value">{{ score }}<span style="font-size:15px;color:#91a1ae">/100</span></div><div class="kpi-foot {% if score > 85 %}good{% else %}warn{% endif %}">{% if issue_count %}{{ issue_count }} detected findings to review{% else %}No issues found in available checks{% endif %}</div></article><article class="card"><div class="kpi-top">Total records <span class="kpi-mark">▤</span></div><div class="kpi-value">{{ '{:,}'.format(report.rows) }}</div><div class="kpi-foot">Rows in uploaded file</div></article><article class="card"><div class="kpi-top">Missing cells <span class="kpi-mark" style="color:var(--amber)">◌</span></div><div class="kpi-value">{{ '{:,}'.format(missing_total) }}</div><div class="kpi-foot {% if missing_total %}warn{% endif %}">{% if report.rows and report.columns %}{{ ((missing_total * 100) / (report.rows * report.columns))|round(1) }}% of dataset cells{% else %}No data cells{% endif %}</div></article><article class="card"><div class="kpi-top">Duplicate rows <span class="kpi-mark" style="color:var(--blue)">⧉</span></div><div class="kpi-value">{{ '{:,}'.format(report.duplicate_rows) }}</div><div class="kpi-foot">Exact row matches</div></article></div>
+<div class="grid upper-grid"><section class="card"><div class="panel-head"><div><h2>Missing values by column</h2><p>Counts from the uploaded dataset</p></div><span class="subtle">QUALITY SIGNALS</span></div><div id="missingChart" class="chart" role="img" aria-label="Bar chart of missing values per column"></div></section><section class="card"><div class="panel-head"><div><h2>Overall health</h2><p>Based on detected missing cells, duplicates, and outliers</p></div></div><div class="health-wrap"><div class="health-ring" ><svg width="138" height="138" viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="54"></circle><circle class="value" cx="60" cy="60" r="54" style="stroke-dasharray:339.3;stroke-dashoffset:{{ ((100 - score) * 339.3 / 100)|round(2) }}"></circle></svg><div class="health-num">{{ score }}<small>HEALTH SCORE</small></div></div><div class="health-copy"><b>{% if score >= 90 %}Looking healthy{% elif score >= 70 %}Some attention needed{% else %}Review recommended{% endif %}</b><p>This score summarizes the checks DataDoctor ran. Review each finding before cleaning.</p><div class="legend"><span class="dot"></span>Quality checks completed</div></div></div></section></div>
+<div class="grid section-grid"><section class="card" id="preview"><div class="panel-head"><div><h2>Data explorer</h2><p>First 10 rows from your uploaded file</p></div><span class="subtle">{{ preview_rows|length }} ROWS SHOWN</span></div><div class="table-wrap"><table id="dataTable"><thead><tr>{% for column in preview_columns %}<th class="sortable" tabindex="0" aria-label="Sort by {{ column }}">{{ column }} <span>↕</span></th>{% endfor %}</tr></thead><tbody>{% for row in preview_rows %}<tr>{% for column in preview_columns %}<td>{{ row[column] if row[column] is not none else '—' }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></section>
+<section class="card" id="issues"><div class="panel-head"><div><h2>Quality report</h2><p>Findings from available checks</p></div><span class="subtle">{{ issue_count }} SIGNALS</span></div><div class="issue-list">{% if missing_total %}<div class="issue"><div class="issue-icon">◌</div><div><b>Missing values</b><p>One or more columns contain blank cells.</p></div><span class="mini-count">{{ missing_total }}</span></div>{% endif %}{% if report.duplicate_rows %}<div class="issue"><div class="issue-icon">⧉</div><div><b>Duplicate rows</b><p>Exact duplicate records were found.</p></div><span class="mini-count">{{ report.duplicate_rows }}</span></div>{% endif %}{% for column,count in report.potential_outliers.items() %}<div class="issue"><div class="issue-icon">↗</div><div><b>Potential outliers · {{ column }}</b><p>Values outside the IQR range; review in context.</p></div><span class="mini-count">{{ count }}</span></div>{% endfor %}{% if report.constant_columns %}<div class="issue"><div class="issue-icon">＝</div><div><b>Constant columns</b><p>{{ report.constant_columns|join(', ') }} contain a single distinct value.</p></div></div>{% endif %}{% if not issue_count and not report.constant_columns %}<div class="issue clean"><div class="issue-icon">✓</div><div><b>No findings in these checks</b><p>We didn't detect missing values, duplicates or IQR outliers.</p></div></div>{% endif %}{% for suggestion in report.suggestions %}<div class="issue"><div class="issue-icon">✦</div><div><b>Suggested review</b><p>{{ suggestion }}</p></div></div>{% endfor %}</div></section></div>
+<section class="card" id="cleaning"><div class="panel-head"><div><h2>Cleaning studio</h2><p>Select optional changes, preview their impact, then download a separate cleaned copy.</p></div><span class="subtle">ORIGINAL FILE STAYS UNCHANGED</span></div><div class="options"><label class="option"><input type="checkbox" name="remove_duplicates" value="yes"><span><b>Remove duplicate rows</b>Drop exact duplicates</span></label><label class="option"><input type="checkbox" name="fill_numeric_missing" value="yes"><span><b>Fill numeric blanks</b>Use each column's median</span></label><label class="option"><input type="checkbox" name="fill_text_missing" value="yes"><span><b>Fill text blanks</b>Use each column's most common value</span></label><label class="option"><input type="checkbox" name="drop_missing" value="yes"><span><b>Drop remaining blank rows</b>Applied after selected fills</span></label></div><div class="actions" id="export"><button class="button secondary" type="submit" name="action" value="preview">Preview changes &nbsp;↗</button><button class="button" type="submit" name="action" value="download">Download cleaned CSV &nbsp;⇩</button></div>{% if cleaning_preview %}<div style="margin-top:18px;padding-top:17px;border-top:1px solid var(--line)"><div class="panel-head"><div><h2>Cleaning preview</h2><p>Review the first 10 rows before downloading.</p></div><span class="subtle">PREVIEW ONLY</span></div><div class="preview-stats"><span>Rows <b>{{ rows_before }}</b> → <b>{{ rows_after }}</b></span><span>Missing cells <b>{{ missing_before }}</b> → <b>{{ missing_after }}</b></span></div><div class="table-wrap"><table><thead><tr>{% for column in cleaned_preview_columns %}<th>{{ column }}</th>{% endfor %}</tr></thead><tbody>{% for row in cleaned_preview_rows %}<tr>{% for column in cleaned_preview_columns %}<td>{{ row[column] if row[column] is not none else '—' }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>{% endif %}</section>
+<div class="footer">DataDoctor · A practical quality check for your CSV · Results depend on the checks shown above</div>
+{% else %}<section class="card empty"><div class="empty-inner"><div class="empty-mark">✳</div><h2>Your workspace is ready</h2><p>Upload a CSV to get a real quality report, a searchable data preview, and cleaning options. No sample metrics are shown here.</p><label for="fileInput" class="button" style="display:inline-block;cursor:pointer">Choose a CSV file &nbsp;↑</label></div></section><div class="footer">DataDoctor · CSV analysis stays within this app</div>{% endif %}</form></main></div>
+{% if report %}<script>
+const missing = {{ report.missing_values|tojson }};
+const labels = Object.keys(missing), counts = labels.map(k => missing[k].count);
+const chart = document.getElementById('missingChart');
+if (chart && window.Plotly) { const has = counts.some(n => n > 0); Plotly.newPlot(chart,[{type:'bar',x:labels,y:counts,marker:{color:counts.map(n=>n?'#48e0c0':'#34434d'),line:{width:0}},hovertemplate:'%{x}<br>%{y} missing<extra></extra>'}],{margin:{l:38,r:10,t:8,b:48},paper_bgcolor:'transparent',plot_bgcolor:'transparent',font:{color:'#91a1ae',family:'Inter,system-ui,sans-serif',size:10},xaxis:{gridcolor:'transparent',tickangle:-25,automargin:true},yaxis:{gridcolor:'#26333c',zerolinecolor:'#26333c',rangemode:'tozero',title:{text:'Missing cells',font:{size:10}}},showlegend:false,autosize:true},{displayModeBar:false,responsive:true}); if(!has) chart.setAttribute('aria-label','No missing values found in any column.'); }
+</script>{% endif %}
+<script>
+const input=document.getElementById('fileInput'),zone=document.getElementById('dropZone'),title=document.getElementById('uploadTitle'),hint=document.getElementById('uploadHint');function showFile(file){if(!file)return;title.textContent=file.name;title.classList.add('filename');hint.textContent=`${(file.size/1024/1024).toFixed(2)} MB · Ready to analyze`;}
+input?.addEventListener('change',()=>showFile(input.files[0]));['dragenter','dragover'].forEach(e=>zone?.addEventListener(e,x=>{x.preventDefault();zone.classList.add('drag')}));['dragleave','drop'].forEach(e=>zone?.addEventListener(e,x=>{x.preventDefault();zone.classList.remove('drag')}));zone?.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f&&f.name.toLowerCase().endsWith('.csv')){input.files=e.dataTransfer.files;showFile(f)}else if(f){hint.textContent='Please drop a .csv file.';hint.style.color='#ff7c86'}});
+document.getElementById('uploadForm')?.addEventListener('submit',e=>{if(!input.files.length)return;const b=e.submitter;if(b?.value==='analyze'){b.disabled=true;b.textContent='Analyzing…';}});
+document.querySelectorAll('#dataTable th.sortable').forEach((th,index)=>{const sort=()=>{const table=th.closest('table'),body=table.tBodies[0],rows=[...body.rows],asc=th.dataset.order!=='asc';th.dataset.order=asc?'asc':'desc';rows.sort((a,b)=>{const x=a.cells[index].textContent.trim(),y=b.cells[index].textContent.trim(),nx=Number(x),ny=Number(y);const cmp=x!==''&&y!==''&&!Number.isNaN(nx)&&!Number.isNaN(ny)?nx-ny:x.localeCompare(y,undefined,{numeric:true,sensitivity:'base'});return asc?cmp:-cmp});rows.forEach(r=>body.appendChild(r));};th.addEventListener('click',sort);th.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sort()}})});
+document.getElementById('mobileMenu')?.addEventListener('click',()=>document.getElementById('nav').classList.toggle('open'));document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));a.classList.add('active');document.getElementById('nav').classList.remove('open')}));
+</script></body></html>
 
-    <form method="post" enctype="multipart/form-data">
-        <p><input type="file" name="file" accept=".csv" required></p>
 
-        <p>
-            <label>
-                <input type="checkbox" name="remove_duplicates" value="yes">
-                Remove duplicate rows in the downloaded copy
-            </label>
-        </p>
-
-        <p>
-            <label>
-                <input type="checkbox" name="drop_missing" value="yes">
-                Drop rows with any missing values in the downloaded copy
-            </label>
-        </p>
-
-        <p>
-            <label>
-                <input type="checkbox" name="fill_numeric_missing" value="yes">
-                Fill blank numeric cells with their column median in the downloaded copy
-            </label>
-        </p>
-
-        <p>
-            <label>
-                <input type="checkbox" name="fill_text_missing" value="yes">
-                Fill blank text cells with the most common value in the downloaded copy
-            </label>
-        </p>
-
-        <button type="submit" name="action" value="analyze">
-            Analyze CSV
-        </button>
-        <button type="submit" name="action" value="preview">
-            Preview cleaning
-        </button>
-        <button type="submit" name="action" value="download">
-            Download cleaned CSV
-        </button>
-    </form>
-
-    {% if error %}
-        <p class="error">{{ error }}</p>
-    {% endif %}
-
-    {% if report %}
-        <section>
-            <h2>Data preview</h2>
-            <p>Showing up to the first 10 original rows.</p>
-            <table>
-                <tr>
-                    {% for column in preview_columns %}
-                        <th>{{ column }}</th>
-                    {% endfor %}
-                </tr>
-                {% for row in preview_rows %}
-                    <tr>
-                        {% for column in preview_columns %}
-                            <td>{{ row[column] }}</td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </table>
-        </section>
-
-        {% if cleaning_preview %}
-            <section>
-                <h2>Cleaning preview</h2>
-                <p><strong>Rows before:</strong> {{ rows_before }}</p>
-                <p><strong>Rows after:</strong> {{ rows_after }}</p>
-                <p><strong>Missing cells before:</strong> {{ missing_before }}</p>
-                <p><strong>Missing cells after:</strong> {{ missing_after }}</p>
-                <p>Showing up to the first 10 cleaned rows.</p>
-
-                <table>
-                    <tr>
-                        {% for column in cleaned_preview_columns %}
-                            <th>{{ column }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row in cleaned_preview_rows %}
-                        <tr>
-                            {% for column in cleaned_preview_columns %}
-                                <td>{{ row[column] }}</td>
-                            {% endfor %}
-                        </tr>
-                    {% endfor %}
-                </table>
-            </section>
-        {% endif %}
-
-        <section>
-            <h2>Dataset overview</h2>
-            <p><strong>Rows:</strong> {{ report.rows }}</p>
-            <p><strong>Columns:</strong> {{ report.columns }}</p>
-            <p><strong>Duplicate rows:</strong> {{ report.duplicate_rows }}</p>
-        </section>
-
-        <section>
-            <h2>Missing values</h2>
-            <table>
-                <tr><th>Column</th><th>Missing</th><th>Percent</th></tr>
-                {% for column, values in report.missing_values.items() %}
-                    <tr>
-                        <td>{{ column }}</td>
-                        <td>{{ values.count }}</td>
-                        <td>{{ values.percentage }}%</td>
-                    </tr>
-                {% endfor %}
-            </table>
-        </section>
-
-        <section>
-            <h2>Data types</h2>
-            <table>
-                <tr><th>Column</th><th>Type</th></tr>
-                {% for column, data_type in report.data_types.items() %}
-                    <tr><td>{{ column }}</td><td>{{ data_type }}</td></tr>
-                {% endfor %}
-            </table>
-        </section>
-
-        <section>
-            <h2>Other checks</h2>
-
-            <h3>Constant columns</h3>
-            {% if report.constant_columns %}
-                <p>{{ report.constant_columns }}</p>
-            {% else %}
-                <p>None found.</p>
-            {% endif %}
-
-            <h3>Potential outliers</h3>
-            {% if report.potential_outliers %}
-                <pre>{{ report.potential_outliers }}</pre>
-            {% else %}
-                <p>None found.</p>
-            {% endif %}
-        </section>
-
-        <section>
-            <h2>Suggested actions</h2>
-            {% if report.suggestions %}
-                <ul>
-                    {% for suggestion in report.suggestions %}
-                        <li>{{ suggestion }}</li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>No issues need attention based on these checks.</p>
-            {% endif %}
-        </section>
-
-        <section>
-            <h2>Numeric correlations</h2>
-            {% if report.correlations %}
-                <table>
-                    <tr>
-                        <th>Column</th>
-                        {% for column in report.correlations.keys() %}
-                            <th>{{ column }}</th>
-                        {% endfor %}
-                    </tr>
-                    {% for row_name, values in report.correlations.items() %}
-                        <tr>
-                            <th>{{ row_name }}</th>
-                            {% for value in values.values() %}
-                                <td>{{ value }}</td>
-                            {% endfor %}
-                        </tr>
-                    {% endfor %}
-                </table>
-            {% else %}
-                <p>No numeric columns to compare.</p>
-            {% endif %}
-        </section>
-
-        <section>
-            <h2>Summary statistics</h2>
-            {% for column, stats in report.summary.items() %}
-                <h3>{{ column }}</h3>
-                <table>
-                    <tr><th>Statistic</th><th>Value</th></tr>
-                    {% for name, value in stats.items() %}
-                        {% if value != '' %}
-                            <tr><td>{{ name }}</td><td>{{ value }}</td></tr>
-                        {% endif %}
-                    {% endfor %}
-                </table>
-            {% endfor %}
-        </section>
-    {% endif %}
-</body>
-</html>
