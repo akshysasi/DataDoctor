@@ -95,12 +95,116 @@ def analyze_dataset(df):
         "data_types": data_types.to_dict(),
         "constant_columns": constant_columns,
         "potential_outliers": outliers,
+        "numeric_nonmissing_values": int(numeric_data.count().sum()),
         "summary": summary,
         "correlations": correlations.to_dict(),
         "suggestions": suggestions,
     }
+    report["health_score"] = calculate_health_score(report)
 
     return report
+
+
+def calculate_health_score(report):
+    """Return an explainable 0–100 score from the analyzer's measured signals.
+
+    Component scores are 100 minus the relevant issue rate in percentage
+    points. The overall score is the weighted mean of available components;
+    unavailable checks are omitted and the remaining weights are normalized.
+    Empty datasets have no score because rates over zero records are undefined.
+    """
+    weights = {
+        "completeness": 35,
+        "duplicates": 25,
+        "outliers": 25,
+        "constant_columns": 15,
+    }
+    rows = int(report.get("rows", 0))
+    columns = int(report.get("columns", 0))
+    components = {}
+
+    def component(rate, weight, basis):
+        rate = max(0.0, min(100.0, float(rate)))
+        return {
+            "score": round(100.0 - rate, 2),
+            "weight": weight,
+            "rate": round(rate, 2),
+            "basis": basis,
+            "available": True,
+        }
+
+    if rows == 0:
+        for name, weight in weights.items():
+            components[name] = {
+                "score": None, "weight": weight, "rate": None,
+                "basis": "No records to assess", "available": False,
+            }
+        return {"score": None, "band": "unavailable", "components": components,
+                "available_weight": 0, "method": "weighted_available_components"}
+
+    cell_count = rows * columns
+    if cell_count:
+        missing_count = sum(
+            int(details.get("count", 0))
+            for details in report.get("missing_values", {}).values()
+        )
+        components["completeness"] = component(
+            missing_count * 100 / cell_count, weights["completeness"],
+            f"Missing cells / all cells ({missing_count} / {cell_count})",
+        )
+    else:
+        components["completeness"] = {
+            "score": None, "weight": weights["completeness"], "rate": None,
+            "basis": "No cells to assess", "available": False,
+        }
+
+    duplicate_count = int(report.get("duplicate_rows", 0))
+    components["duplicates"] = component(
+        duplicate_count * 100 / rows, weights["duplicates"],
+        f"Duplicate rows / all rows ({duplicate_count} / {rows})",
+    )
+
+    outlier_count = sum(int(count) for count in report.get("potential_outliers", {}).values())
+    outlier_denominator = int(report.get("numeric_nonmissing_values", 0))
+    if outlier_denominator > 0:
+        components["outliers"] = component(
+            outlier_count * 100 / outlier_denominator, weights["outliers"],
+            f"Potential IQR outliers / numeric non-missing values ({outlier_count} / {outlier_denominator})",
+        )
+    else:
+        components["outliers"] = {
+            "score": None, "weight": weights["outliers"], "rate": None,
+            "basis": "No eligible numeric values for the IQR check", "available": False,
+        }
+
+    constant_count = len(report.get("constant_columns", []))
+    if columns > 0:
+        components["constant_columns"] = component(
+            constant_count * 100 / columns, weights["constant_columns"],
+            f"Constant columns / all columns ({constant_count} / {columns})",
+        )
+    else:
+        components["constant_columns"] = {
+            "score": None, "weight": weights["constant_columns"], "rate": None,
+            "basis": "No columns to assess", "available": False,
+        }
+
+    available = [item for item in components.values() if item["available"]]
+    available_weight = sum(item["weight"] for item in available)
+    if not available_weight:
+        score = None
+        band = "unavailable"
+    else:
+        score = round(sum(item["score"] * item["weight"] for item in available) / available_weight)
+        band = "excellent" if score >= 90 else "needs_attention" if score >= 70 else "poor"
+
+    return {
+        "score": score,
+        "band": band,
+        "components": components,
+        "available_weight": available_weight,
+        "method": "weighted_available_components",
+    }
 
 def clean_dataset(
     df,
