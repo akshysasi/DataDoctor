@@ -265,6 +265,52 @@ def fill_missing_values(df, numeric_strategy="median"):
 
     return cleaned_df
 
+
+def outlier_row_mask(df):
+    """Return rows flagged by the same per-column IQR rule used in the report."""
+    flagged = np.zeros(len(df), dtype=bool)
+    numeric_columns = df.select_dtypes(include=np.number).columns
+
+    for column in numeric_columns:
+        values = df[column]
+        series = values.dropna()
+        if len(series) < 4:
+            continue
+
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        flagged |= ((values < lower_bound) | (values > upper_bound)).fillna(False).to_numpy(dtype=bool)
+
+    return pd.Series(flagged, index=df.index)
+
+
+def outlier_columns_by_row(df):
+    """Return the numeric columns whose IQR bounds flag each row, by position."""
+    columns_by_position = [[] for _ in range(len(df))]
+    for column in df.select_dtypes(include=np.number).columns:
+        values = df[column]
+        series = values.dropna()
+        if len(series) < 4:
+            continue
+
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+
+        mask = ((values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)).fillna(False).to_numpy(dtype=bool)
+        for position in np.flatnonzero(mask):
+            columns_by_position[position].append(str(column))
+
+    return columns_by_position
+
 if __name__ == "__main__":
     # Temporary test dataset
     sample_data = {

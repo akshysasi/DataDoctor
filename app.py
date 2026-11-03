@@ -4,7 +4,7 @@ from secrets import token_hex
 from flask import Flask, render_template, request, send_file, session
 import pandas as pd
 
-from analyzer import analyze_dataset, fill_missing_values
+from analyzer import analyze_dataset, fill_missing_values, outlier_columns_by_row, outlier_row_mask
 
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -49,6 +49,10 @@ def index():
     missing_preview = False
     missing_cells_after = 0
     numeric_strategy = "median"
+    outlier_rows_count = 0
+    outlier_preview_columns = []
+    outlier_preview_rows = []
+    outlier_preview = False
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
@@ -83,6 +87,10 @@ def index():
                         state["current"],
                         numeric_strategy=numeric_strategy,
                     )
+                elif action == "apply_outliers":
+                    outlier_mask = outlier_row_mask(state["current"])
+                    state["undo"] = state["current"].copy()
+                    state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
                 elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
@@ -93,6 +101,8 @@ def index():
                 active_df = state["current"]
                 original_df = state["original"]
                 duplicate_rows = int(active_df.duplicated().sum())
+                outlier_mask = outlier_row_mask(active_df)
+                outlier_rows_count = int(outlier_mask.sum())
                 can_undo = state["undo"] is not None
                 report = analyze_dataset(active_df)
                 preview_columns = active_df.columns.tolist()
@@ -114,6 +124,16 @@ def index():
                     missing_preview_columns = proposed_df.columns.tolist()
                     missing_preview_rows = proposed_df.loc[affected].head(10).to_dict(orient="records")
                     missing_cells_after = int(proposed_df.isna().sum().sum())
+                outlier_preview = action == "preview_outliers"
+                if outlier_preview:
+                    original_mask = outlier_row_mask(active_df)
+                    flagged_df = active_df.loc[original_mask]
+                    outlier_preview_columns = active_df.columns.tolist()
+                    outlier_preview_rows = flagged_df.head(10).to_dict(orient="records")
+                    flagged_columns = outlier_columns_by_row(active_df)
+                    flagged_positions = [i for i, flagged in enumerate(original_mask.to_numpy()) if flagged][:10]
+                    for row, position in zip(outlier_preview_rows, flagged_positions):
+                        row["__outlier_columns__"] = flagged_columns[position]
                 cleaned_preview_columns = active_df.columns.tolist()
                 cleaned_preview_rows = active_df.loc[~active_df.duplicated(keep="first")].head(10).to_dict(orient="records")
                 if action == "download":
@@ -131,6 +151,7 @@ def index():
         active_df = state["current"]
         original_df = state["original"]
         duplicate_rows = int(active_df.duplicated().sum())
+        outlier_rows_count = int(outlier_row_mask(active_df).sum())
         can_undo = state["undo"] is not None
         report = analyze_dataset(active_df)
         preview_columns = active_df.columns.tolist()
@@ -167,6 +188,10 @@ def index():
         missing_preview_rows=missing_preview_rows,
         missing_cells_after=missing_cells_after,
         numeric_strategy=numeric_strategy,
+        outlier_rows_count=outlier_rows_count,
+        outlier_preview=outlier_preview,
+        outlier_preview_columns=outlier_preview_columns,
+        outlier_preview_rows=outlier_preview_rows,
     )
 
 
