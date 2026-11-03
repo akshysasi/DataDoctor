@@ -4,7 +4,13 @@ from secrets import token_hex
 from flask import Flask, render_template, request, send_file, session
 import pandas as pd
 
-from analyzer import analyze_dataset, fill_missing_values, outlier_columns_by_row, outlier_row_mask
+from analyzer import (
+    analyze_dataset,
+    convert_column_type,
+    fill_missing_values,
+    outlier_columns_by_row,
+    outlier_row_mask,
+)
 
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -53,11 +59,21 @@ def index():
     outlier_preview_columns = []
     outlier_preview_rows = []
     outlier_preview = False
+    type_columns = []
+    type_column = ""
+    type_target = "number"
+    type_preview = False
+    type_preview_rows = []
+    type_source_dtype = ""
+    type_result_dtype = ""
+    type_invalid_count = 0
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
         action = request.form.get("action", "analyze")
         numeric_strategy = request.form.get("numeric_strategy", "median")
+        type_column = request.form.get("type_column", "")
+        type_target = request.form.get("type_target", "number")
 
         try:
             if uploaded_file is not None and uploaded_file.filename and action == "analyze":
@@ -91,6 +107,21 @@ def index():
                     outlier_mask = outlier_row_mask(state["current"])
                     state["undo"] = state["current"].copy()
                     state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
+                elif action == "apply_type":
+                    if type_column not in state["current"].columns:
+                        error = "Choose a column before applying a type conversion."
+                    else:
+                        proposed_df, invalid_count = convert_column_type(
+                            state["current"], type_column, type_target
+                        )
+                    if type_column in state["current"].columns and invalid_count:
+                        error = (
+                            f"Conversion stopped: {invalid_count} non-empty value(s) "
+                            "cannot be converted. Review the preview first."
+                        )
+                    elif type_column in state["current"].columns:
+                        state["undo"] = state["current"].copy()
+                        state["current"] = proposed_df
                 elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
@@ -100,6 +131,7 @@ def index():
 
                 active_df = state["current"]
                 original_df = state["original"]
+                type_columns = active_df.columns.tolist()
                 duplicate_rows = int(active_df.duplicated().sum())
                 outlier_mask = outlier_row_mask(active_df)
                 outlier_rows_count = int(outlier_mask.sum())
@@ -134,6 +166,26 @@ def index():
                     flagged_positions = [i for i, flagged in enumerate(original_mask.to_numpy()) if flagged][:10]
                     for row, position in zip(outlier_preview_rows, flagged_positions):
                         row["__outlier_columns__"] = flagged_columns[position]
+                type_preview = action == "preview_type" or (action == "apply_type" and bool(error))
+                if type_preview and type_column in active_df.columns:
+                    proposed_df, type_invalid_count = convert_column_type(
+                        active_df, type_column, type_target
+                    )
+                    type_source_dtype = str(active_df[type_column].dtype)
+                    type_result_dtype = str(proposed_df[type_column].dtype)
+                    for before, after in zip(
+                        active_df[type_column].head(10).tolist(),
+                        proposed_df[type_column].head(10).tolist(),
+                    ):
+                        before_is_missing = pd.isna(before)
+                        after_is_missing = pd.isna(after)
+                        type_preview_rows.append({
+                            "before": "—" if before_is_missing else str(before),
+                            "after": "—" if after_is_missing else str(after),
+                            "invalid": bool(not before_is_missing and after_is_missing),
+                        })
+                elif action == "preview_type":
+                    error = "Choose a column to preview a type conversion."
                 cleaned_preview_columns = active_df.columns.tolist()
                 cleaned_preview_rows = active_df.loc[~active_df.duplicated(keep="first")].head(10).to_dict(orient="records")
                 if action == "download":
@@ -150,6 +202,7 @@ def index():
         filename = state["filename"]
         active_df = state["current"]
         original_df = state["original"]
+        type_columns = active_df.columns.tolist()
         duplicate_rows = int(active_df.duplicated().sum())
         outlier_rows_count = int(outlier_row_mask(active_df).sum())
         can_undo = state["undo"] is not None
@@ -192,6 +245,14 @@ def index():
         outlier_preview=outlier_preview,
         outlier_preview_columns=outlier_preview_columns,
         outlier_preview_rows=outlier_preview_rows,
+        type_columns=type_columns,
+        type_column=type_column,
+        type_target=type_target,
+        type_preview=type_preview,
+        type_preview_rows=type_preview_rows,
+        type_source_dtype=type_source_dtype,
+        type_result_dtype=type_result_dtype,
+        type_invalid_count=type_invalid_count,
     )
 
 

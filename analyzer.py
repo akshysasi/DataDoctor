@@ -311,6 +311,27 @@ def outlier_columns_by_row(df):
 
     return columns_by_position
 
+
+def convert_column_type(df, column, target_type):
+    """Return a copied frame with one column safely converted and invalid count."""
+    if column not in df.columns:
+        raise ValueError("Choose a valid column to convert.")
+    if target_type not in {"number", "date", "text"}:
+        raise ValueError("Choose number, date, or text as the target type.")
+
+    result = df.copy()
+    source = result[column]
+    if target_type == "number":
+        converted = pd.to_numeric(source, errors="coerce")
+    elif target_type == "date":
+        converted = pd.to_datetime(source, errors="coerce")
+    else:
+        converted = source.astype("string")
+
+    invalid = source.notna() & converted.isna()
+    result[column] = converted
+    return result, int(invalid.sum())
+
 if __name__ == "__main__":
     # Temporary test dataset
     sample_data = {
