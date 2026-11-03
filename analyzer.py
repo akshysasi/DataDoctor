@@ -332,6 +332,34 @@ def convert_column_type(df, column, target_type):
     result[column] = converted
     return result, int(invalid.sum())
 
+
+def standardize_category_values(df, column, mode="trim"):
+    """Return a copied frame with one text column standardized and change count."""
+    if column not in df.columns:
+        raise ValueError("Choose a valid text column to standardize.")
+    if mode not in {"trim", "lower", "title"}:
+        raise ValueError("Choose trim, lowercase, or title case.")
+
+    source = df[column]
+    dtype = source.dtype
+    if not (
+        pd.api.types.is_object_dtype(dtype)
+        or pd.api.types.is_string_dtype(dtype)
+        or isinstance(dtype, pd.CategoricalDtype)
+    ):
+        raise ValueError("Choose a text or category column.")
+
+    values = source.astype("string").str.strip()
+    if mode == "lower":
+        values = values.str.lower()
+    elif mode == "title":
+        values = values.str.title()
+
+    changed = (source.astype("string") != values).fillna(False)
+    result = df.copy()
+    result[column] = values
+    return result, int(changed.sum())
+
 if __name__ == "__main__":
     # Temporary test dataset
     sample_data = {

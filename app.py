@@ -10,6 +10,7 @@ from analyzer import (
     fill_missing_values,
     outlier_columns_by_row,
     outlier_row_mask,
+    standardize_category_values,
 )
 
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -67,6 +68,12 @@ def index():
     type_source_dtype = ""
     type_result_dtype = ""
     type_invalid_count = 0
+    category_columns = []
+    category_column = ""
+    category_mode = "trim"
+    category_preview = False
+    category_preview_rows = []
+    category_changed_count = 0
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
@@ -74,6 +81,8 @@ def index():
         numeric_strategy = request.form.get("numeric_strategy", "median")
         type_column = request.form.get("type_column", "")
         type_target = request.form.get("type_target", "number")
+        category_column = request.form.get("category_column", "")
+        category_mode = request.form.get("category_mode", "trim")
 
         try:
             if uploaded_file is not None and uploaded_file.filename and action == "analyze":
@@ -122,6 +131,19 @@ def index():
                     elif type_column in state["current"].columns:
                         state["undo"] = state["current"].copy()
                         state["current"] = proposed_df
+                elif action == "apply_standardize":
+                    try:
+                        proposed_df, changed_count = standardize_category_values(
+                            state["current"], category_column, category_mode
+                        )
+                    except ValueError as exc:
+                        error = str(exc)
+                    else:
+                        if changed_count:
+                            state["undo"] = state["current"].copy()
+                            state["current"] = proposed_df
+                        else:
+                            error = "No values in this column need standardization."
                 elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
@@ -132,6 +154,12 @@ def index():
                 active_df = state["current"]
                 original_df = state["original"]
                 type_columns = active_df.columns.tolist()
+                category_columns = [
+                    column for column in active_df.columns
+                    if pd.api.types.is_object_dtype(active_df[column].dtype)
+                    or pd.api.types.is_string_dtype(active_df[column].dtype)
+                    or isinstance(active_df[column].dtype, pd.CategoricalDtype)
+                ]
                 duplicate_rows = int(active_df.duplicated().sum())
                 outlier_mask = outlier_row_mask(active_df)
                 outlier_rows_count = int(outlier_mask.sum())
@@ -186,6 +214,27 @@ def index():
                         })
                 elif action == "preview_type":
                     error = "Choose a column to preview a type conversion."
+                category_preview = action == "preview_standardize" or (
+                    action == "apply_standardize" and bool(error)
+                )
+                if category_preview:
+                    try:
+                        proposed_df, category_changed_count = standardize_category_values(
+                            active_df, category_column, category_mode
+                        )
+                    except ValueError as exc:
+                        error = str(exc)
+                    else:
+                        differences = (
+                            active_df[category_column].astype("string")
+                            != proposed_df[category_column].astype("string")
+                        ).fillna(False)
+                        before_values = active_df.loc[differences, category_column].head(10)
+                        after_values = proposed_df.loc[differences, category_column].head(10)
+                        category_preview_rows = [
+                            {"before": str(before), "after": str(after)}
+                            for before, after in zip(before_values.tolist(), after_values.tolist())
+                        ]
                 cleaned_preview_columns = active_df.columns.tolist()
                 cleaned_preview_rows = active_df.loc[~active_df.duplicated(keep="first")].head(10).to_dict(orient="records")
                 if action == "download":
@@ -203,6 +252,12 @@ def index():
         active_df = state["current"]
         original_df = state["original"]
         type_columns = active_df.columns.tolist()
+        category_columns = [
+            column for column in active_df.columns
+            if pd.api.types.is_object_dtype(active_df[column].dtype)
+            or pd.api.types.is_string_dtype(active_df[column].dtype)
+            or isinstance(active_df[column].dtype, pd.CategoricalDtype)
+        ]
         duplicate_rows = int(active_df.duplicated().sum())
         outlier_rows_count = int(outlier_row_mask(active_df).sum())
         can_undo = state["undo"] is not None
@@ -253,6 +308,12 @@ def index():
         type_source_dtype=type_source_dtype,
         type_result_dtype=type_result_dtype,
         type_invalid_count=type_invalid_count,
+        category_columns=category_columns,
+        category_column=category_column,
+        category_mode=category_mode,
+        category_preview=category_preview,
+        category_preview_rows=category_preview_rows,
+        category_changed_count=category_changed_count,
     )
 
 
