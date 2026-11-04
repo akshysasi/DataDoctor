@@ -8,6 +8,7 @@ import pandas as pd
 from analyzer import (
     analyze_dataset,
     convert_column_type,
+    detect_anomalies,
     fill_missing_values,
     outlier_columns_by_row,
     outlier_row_mask,
@@ -31,6 +32,7 @@ def build_cleaning_script(operations):
         "import argparse",
         "import numpy as np",
         "import pandas as pd",
+        "from sklearn.ensemble import IsolationForest",
         "",
         "def remove_iqr_outliers(frame):",
         "    flagged = np.zeros(len(frame), dtype=bool)",
@@ -45,6 +47,18 @@ def build_cleaning_script(operations):
         "            continue",
         "        flagged |= ((values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)).fillna(False).to_numpy(dtype=bool)",
         "    return frame.loc[~flagged].reset_index(drop=True)",
+        "",
+        "def remove_isolation_forest_anomalies(frame, contamination):",
+        "    if len(frame) < 5:",
+        "        return frame",
+        "    numeric = frame.select_dtypes(include=np.number)",
+        "    usable = [column for column in numeric.columns if numeric[column].notna().any() and numeric[column].nunique(dropna=True) > 1]",
+        "    if not usable:",
+        "        return frame",
+        "    features = numeric[usable].fillna(numeric[usable].median())",
+        "    model = IsolationForest(n_estimators=100, contamination=contamination, random_state=42)",
+        "    labels = model.fit_predict(features)",
+        "    return frame.loc[labels != -1].reset_index(drop=True)",
         "",
         "parser = argparse.ArgumentParser(description=__doc__)",
         "parser.add_argument('input_csv', help='Source CSV to clean')",
@@ -76,6 +90,9 @@ def build_cleaning_script(operations):
             ])
         elif operation == "remove_outliers":
             lines.append("df = remove_iqr_outliers(df)")
+        elif operation == "remove_anomalies":
+            contamination = float(action.get("contamination", 0.05))
+            lines.append(f"df = remove_isolation_forest_anomalies(df, {contamination!r})")
         elif operation == "convert_type":
             column = repr(action.get("column", ""))
             target_type = action.get("target_type")
@@ -157,6 +174,12 @@ def index():
     category_preview = False
     category_preview_rows = []
     category_changed_count = 0
+    anomaly_contamination = "0.05"
+    anomaly_rows_count = 0
+    anomaly_preview = False
+    anomaly_preview_columns = []
+    anomaly_preview_rows = []
+    anomaly_detection_error = None
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
@@ -166,6 +189,7 @@ def index():
         type_target = request.form.get("type_target", "number")
         category_column = request.form.get("category_column", "")
         category_mode = request.form.get("category_mode", "trim")
+        anomaly_contamination = request.form.get("anomaly_contamination", "0.05")
 
         try:
             if uploaded_file is not None and uploaded_file.filename and action == "analyze":
@@ -208,6 +232,20 @@ def index():
                         state["undo"] = state["current"].copy()
                         state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
                         operations.append({"operation": "remove_outliers"})
+                elif action == "apply_anomalies":
+                    anomaly_mask, _, anomaly_detection_error = detect_anomalies(
+                        state["current"], float(anomaly_contamination)
+                    )
+                    if not anomaly_detection_error and anomaly_mask.any():
+                        state["undo"] = state["current"].copy()
+                        state["current"] = state["current"].loc[~anomaly_mask].reset_index(drop=True)
+                        operations.append({
+                            "operation": "remove_anomalies",
+                            "contamination": float(anomaly_contamination),
+                        })
+                    elif not anomaly_detection_error:
+                        error = "Isolation Forest did not flag any rows with this setting."
+
                 elif action == "apply_type":
                     if type_column not in state["current"].columns:
                         error = "Choose a column before applying a type conversion."
@@ -268,6 +306,10 @@ def index():
                 duplicate_rows = int(active_df.duplicated().sum())
                 outlier_mask = outlier_row_mask(active_df)
                 outlier_rows_count = int(outlier_mask.sum())
+                anomaly_mask, anomaly_scores, anomaly_detection_error = detect_anomalies(
+                    active_df, float(anomaly_contamination)
+                )
+                anomaly_rows_count = int(anomaly_mask.sum())
                 can_undo = state["undo"] is not None
                 report = analyze_dataset(active_df)
                 preview_columns = active_df.columns.tolist()
@@ -299,6 +341,13 @@ def index():
                     flagged_positions = [i for i, flagged in enumerate(original_mask.to_numpy()) if flagged][:10]
                     for row, position in zip(outlier_preview_rows, flagged_positions):
                         row["__outlier_columns__"] = flagged_columns[position]
+                anomaly_preview = action == "preview_anomalies"
+                if anomaly_preview and not anomaly_detection_error:
+                    flagged_positions = [i for i, flagged in enumerate(anomaly_mask.to_numpy()) if flagged][:10]
+                    anomaly_preview_columns = active_df.columns.tolist()
+                    anomaly_preview_rows = active_df.iloc[flagged_positions].to_dict(orient="records")
+                    for row, position in zip(anomaly_preview_rows, flagged_positions):
+                        row["__anomaly_score__"] = round(float(anomaly_scores.iloc[position]), 4)
                 type_preview = action == "preview_type" or (action == "apply_type" and bool(error))
                 if type_preview and type_column in active_df.columns:
                     proposed_df, type_invalid_count = convert_column_type(
@@ -385,6 +434,10 @@ def index():
         ]
         duplicate_rows = int(active_df.duplicated().sum())
         outlier_rows_count = int(outlier_row_mask(active_df).sum())
+        anomaly_mask, _, anomaly_detection_error = detect_anomalies(
+            active_df, float(anomaly_contamination)
+        )
+        anomaly_rows_count = int(anomaly_mask.sum())
         can_undo = state["undo"] is not None
         report = analyze_dataset(active_df)
         preview_columns = active_df.columns.tolist()
@@ -439,6 +492,12 @@ def index():
         category_preview=category_preview,
         category_preview_rows=category_preview_rows,
         category_changed_count=category_changed_count,
+        anomaly_contamination=anomaly_contamination,
+        anomaly_rows_count=anomaly_rows_count,
+        anomaly_preview=anomaly_preview,
+        anomaly_preview_columns=anomaly_preview_columns,
+        anomaly_preview_rows=anomaly_preview_rows,
+        anomaly_detection_error=anomaly_detection_error,
     )
 
 

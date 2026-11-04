@@ -312,6 +312,47 @@ def outlier_columns_by_row(df):
     return columns_by_position
 
 
+def detect_anomalies(df, contamination=0.05):
+    """Flag unusual rows with Isolation Forest over usable numeric columns."""
+    if not 0 < float(contamination) <= 0.5:
+        raise ValueError("contamination must be greater than 0 and at most 0.5")
+    if len(df) < 5:
+        return (
+            pd.Series(False, index=df.index),
+            pd.Series(np.nan, index=df.index, dtype=float),
+            "Isolation Forest needs at least 5 rows.",
+        )
+
+    numeric = df.select_dtypes(include=np.number)
+    usable = [
+        column for column in numeric.columns
+        if numeric[column].notna().any() and numeric[column].nunique(dropna=True) > 1
+    ]
+    if not usable:
+        return (
+            pd.Series(False, index=df.index),
+            pd.Series(np.nan, index=df.index, dtype=float),
+            "No varying numeric columns are available for anomaly detection.",
+        )
+
+    from sklearn.ensemble import IsolationForest
+
+    features = numeric[usable].copy()
+    features = features.fillna(features.median())
+    model = IsolationForest(
+        n_estimators=100,
+        contamination=float(contamination),
+        random_state=42,
+    )
+    labels = model.fit_predict(features)
+    scores = -model.decision_function(features)
+    return (
+        pd.Series(labels == -1, index=df.index),
+        pd.Series(scores, index=df.index, dtype=float),
+        None,
+    )
+
+
 def convert_column_type(df, column, target_type):
     """Return a copied frame with one column safely converted and invalid count."""
     if column not in df.columns:
