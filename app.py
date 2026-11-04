@@ -23,6 +23,88 @@ _active_datasets = {}
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 
+def build_cleaning_script(operations):
+    """Build a standalone pandas script that replays the active clean history."""
+    lines = [
+        "#!/usr/bin/env python3",
+        '"""Reproduce DataDoctor cleaning actions on a source CSV."""',
+        "import argparse",
+        "import numpy as np",
+        "import pandas as pd",
+        "",
+        "def remove_iqr_outliers(frame):",
+        "    flagged = np.zeros(len(frame), dtype=bool)",
+        "    for column in frame.select_dtypes(include=np.number).columns:",
+        "        values = frame[column]",
+        "        observed = values.dropna()",
+        "        if len(observed) < 4:",
+        "            continue",
+        "        q1, q3 = observed.quantile(0.25), observed.quantile(0.75)",
+        "        iqr = q3 - q1",
+        "        if iqr == 0:",
+        "            continue",
+        "        flagged |= ((values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)).fillna(False).to_numpy(dtype=bool)",
+        "    return frame.loc[~flagged].reset_index(drop=True)",
+        "",
+        "parser = argparse.ArgumentParser(description=__doc__)",
+        "parser.add_argument('input_csv', help='Source CSV to clean')",
+        "parser.add_argument('output_csv', help='Path for the cleaned CSV')",
+        "args = parser.parse_args()",
+        "df = pd.read_csv(args.input_csv)",
+        "",
+    ]
+
+    for step, action in enumerate(operations, start=1):
+        operation = action.get("operation")
+        lines.append(f"# Cleaning step {step}: {operation}")
+        if operation == "remove_duplicates":
+            lines.append("df = df.drop_duplicates().reset_index(drop=True)")
+        elif operation == "fill_missing":
+            strategy = action.get("strategy", "median")
+            if strategy not in {"mean", "median"}:
+                continue
+            lines.extend([
+                "numeric_columns = df.select_dtypes(include=np.number).columns",
+                "for column in numeric_columns:",
+                f"    fill_value = df[column].{strategy}()",
+                "    if pd.notna(fill_value):",
+                "        df[column] = df[column].fillna(fill_value)",
+                "for column in df.columns.difference(numeric_columns, sort=False):",
+                "    mode = df[column].mode(dropna=True)",
+                "    if not mode.empty:",
+                "        df[column] = df[column].fillna(mode.iloc[0])",
+            ])
+        elif operation == "remove_outliers":
+            lines.append("df = remove_iqr_outliers(df)")
+        elif operation == "convert_type":
+            column = repr(action.get("column", ""))
+            target_type = action.get("target_type")
+            if target_type == "number":
+                lines.append(f"df[{column}] = pd.to_numeric(df[{column}], errors='raise')")
+            elif target_type == "date":
+                lines.append(f"df[{column}] = pd.to_datetime(df[{column}], errors='raise')")
+            elif target_type == "text":
+                lines.append(f"df[{column}] = df[{column}].astype('string')")
+        elif operation == "standardize_category":
+            column = repr(action.get("column", ""))
+            mode = action.get("mode", "trim")
+            if mode not in {"trim", "lower", "title"}:
+                continue
+            lines.append(f"values = df[{column}].astype('string').str.strip()")
+            if mode == "lower":
+                lines.append("values = values.str.lower()")
+            elif mode == "title":
+                lines.append("values = values.str.title()")
+            lines.append(f"df[{column}] = values")
+        lines.append("")
+
+    lines.extend([
+        "df.to_csv(args.output_csv, index=False, encoding='utf-8-sig')",
+        "print(f'Cleaned CSV saved to {args.output_csv}')",
+    ])
+    return BytesIO(("\n".join(lines) + "\n").encode("utf-8"))
+
+
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(error):
     return render_template(
@@ -95,7 +177,7 @@ def index():
                 session["dataset_id"] = dataset_id
                 _active_datasets[dataset_id] = {
                     "original": df.copy(), "current": df.copy(),
-                    "undo": None, "filename": filename,
+                    "undo": None, "filename": filename, "operations": [],
                 }
             dataset_id = session.get("dataset_id")
             state = _active_datasets.get(dataset_id)
@@ -104,19 +186,28 @@ def index():
                     error = "Upload and analyze a CSV before using the Cleaning Studio."
             else:
                 filename = state["filename"]
+                operations = state.setdefault("operations", [])
                 if action == "apply_duplicates":
-                    state["undo"] = state["current"].copy()
-                    state["current"] = state["current"].drop_duplicates().reset_index(drop=True)
+                    cleaned = state["current"].drop_duplicates().reset_index(drop=True)
+                    if not cleaned.equals(state["current"].reset_index(drop=True)):
+                        state["undo"] = state["current"].copy()
+                        state["current"] = cleaned
+                        operations.append({"operation": "remove_duplicates"})
                 elif action == "apply_missing":
-                    state["undo"] = state["current"].copy()
-                    state["current"] = fill_missing_values(
+                    cleaned = fill_missing_values(
                         state["current"],
                         numeric_strategy=numeric_strategy,
                     )
+                    if not cleaned.equals(state["current"]):
+                        state["undo"] = state["current"].copy()
+                        state["current"] = cleaned
+                        operations.append({"operation": "fill_missing", "strategy": numeric_strategy})
                 elif action == "apply_outliers":
                     outlier_mask = outlier_row_mask(state["current"])
-                    state["undo"] = state["current"].copy()
-                    state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
+                    if outlier_mask.any():
+                        state["undo"] = state["current"].copy()
+                        state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
+                        operations.append({"operation": "remove_outliers"})
                 elif action == "apply_type":
                     if type_column not in state["current"].columns:
                         error = "Choose a column before applying a type conversion."
@@ -129,9 +220,14 @@ def index():
                             f"Conversion stopped: {invalid_count} non-empty value(s) "
                             "cannot be converted. Review the preview first."
                         )
-                    elif type_column in state["current"].columns:
+                    elif type_column in state["current"].columns and not proposed_df.equals(state["current"]):
                         state["undo"] = state["current"].copy()
                         state["current"] = proposed_df
+                        operations.append({
+                            "operation": "convert_type",
+                            "column": str(type_column),
+                            "target_type": type_target,
+                        })
                 elif action == "apply_standardize":
                     try:
                         proposed_df, changed_count = standardize_category_values(
@@ -143,14 +239,22 @@ def index():
                         if changed_count:
                             state["undo"] = state["current"].copy()
                             state["current"] = proposed_df
+                            operations.append({
+                                "operation": "standardize_category",
+                                "column": str(category_column),
+                                "mode": category_mode,
+                            })
                         else:
                             error = "No values in this column need standardization."
                 elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
+                    if operations:
+                        operations.pop()
                 elif action == "reset_dataset":
                     state["current"] = state["original"].copy()
                     state["undo"] = None
+                    operations.clear()
 
                 active_df = state["current"]
                 original_df = state["original"]
@@ -256,6 +360,13 @@ def index():
                         mimetype="application/json",
                         as_attachment=True,
                         download_name="datadoctor_quality_report.json",
+                    )
+                if action == "download_script":
+                    return send_file(
+                        build_cleaning_script(operations),
+                        mimetype="text/x-python",
+                        as_attachment=True,
+                        download_name="datadoctor_cleaning_script.py",
                     )
         except Exception as exc:
             error = f"Could not analyze that CSV: {exc}"
