@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 from secrets import token_hex
 
 from flask import Flask, render_template, request, send_file, session
@@ -243,6 +244,19 @@ def index():
                     output.seek(0)
                     return send_file(output, mimetype="text/csv", as_attachment=True,
                                      download_name="datadoctor_cleaned.csv")
+                if action == "download_report":
+                    report_data = json.dumps(
+                        report,
+                        ensure_ascii=False,
+                        indent=2,
+                        default=lambda value: value.item() if hasattr(value, "item") else str(value),
+                    ).encode("utf-8")
+                    return send_file(
+                        BytesIO(report_data),
+                        mimetype="application/json",
+                        as_attachment=True,
+                        download_name="datadoctor_quality_report.json",
+                    )
         except Exception as exc:
             error = f"Could not analyze that CSV: {exc}"
 
