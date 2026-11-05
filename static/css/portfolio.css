@@ -1,0 +1,62 @@
+:root { --bg:#090f14; --panel:#111a21; --panel2:#15222b; --line:#263943; --muted:#9aabb6; --text:#eef6f7; --teal:#42dec5; --blue:#70c7ef; --radius:16px; }
+html { scroll-behavior:smooth; scroll-padding-top:24px; }
+body { background:radial-gradient(ellipse at 72% -20%,#0d3b3b 0,transparent 38%),var(--bg); }
+.sidebar { background:#0a1218ed; border-color:#20323b; }
+.brand-icon { box-shadow:0 8px 28px #35d6ba35; }
+.nav a { min-height:42px; }
+.nav a:hover,.nav a.active { box-shadow:inset 2px 0 var(--teal); }
+main { padding-top:clamp(24px,4vw,42px); }
+.heading { margin-bottom:26px; }
+.heading h1 { letter-spacing:-1.8px; }
+.card { background:linear-gradient(155deg,#14212a,#10171e 72%); border-color:#263943; box-shadow:0 12px 32px #0002; transition:border-color .18s,transform .18s,box-shadow .18s; }
+.card:hover { border-color:#35525c; box-shadow:0 16px 38px #0003; }
+.kpis { grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); }
+.kpi-value { font-variant-numeric:tabular-nums; }
+.button { min-height:40px; box-shadow:0 5px 16px #36d6ba12; }
+.button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,th:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.button.secondary:hover { border-color:#4b7779; background:#1b3036; }
+input,select { color-scheme:dark; }
+.table-wrap { scrollbar-color:#34535d #121b21; }
+td.missing-cell { color:#f2bd6c; background:#f2bd6c0a; font-style:italic; }
+.explorer-tools { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:0 0 12px; }
+.explorer-tools input,.explorer-tools select { border:1px solid var(--line); border-radius:9px; background:#0f181e; color:var(--text); padding:9px 11px; }
+.explorer-tools input { flex:1 1 220px; }
+.explorer-tools select { min-width:100px; }
+.explorer-tools .page-label { margin-left:auto; color:var(--muted); font-size:12px; }
+.explorer-tools button { border:1px solid var(--line); border-radius:8px; color:var(--text); background:#17242c; padding:8px 11px; cursor:pointer; }
+.explorer-tools button:disabled { opacity:.45; cursor:default; }
+.column-profile { display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin:0 0 13px; }
+.column-chip { border:1px solid #2a3b44; background:#131e25; border-radius:7px; padding:4px 8px; color:#b6c7ce; font-size:10px; }
+.column-chip b { color:var(--teal); font-weight:650; }
+.activity-list { display:grid; gap:8px; }
+.activity-item { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border:1px solid #25343c; border-radius:10px; background:#121c23; font-size:12px; }
+.activity-item time { color:var(--muted); white-space:nowrap; }
+.notice { margin:0 0 14px; padding:11px 14px; border:1px solid #286559; border-radius:10px; color:#b7f6e7; background:#102923; }
+.notice.error { color:#ffdce0; background:#341d24; border-color:#61313a; }
+.empty { min-height:270px; }
+@media(max-width:780px) {
+  .sidebar { width:75px; padding-inline:10px; }
+  .brand { justify-content:center; padding-inline:0; }
+  .brand>span:not(.brand-icon),.brand small,.nav-label,.nav a:not(.active) { font-size:0; }
+  .nav a { justify-content:center; gap:0; }
+  .nav a .nav-icon { font-size:16px; }
+  .privacy { display:none; }
+  main { margin-left:75px; padding-inline:18px; }
+}
+@media(max-width:520px) {
+  .sidebar { position:sticky; inset:0 0 auto; width:auto; height:auto; padding:8px 12px; border-right:0; border-bottom:1px solid var(--line); flex-direction:row; align-items:center; }
+  .brand { padding:0; margin-right:auto; }
+  .nav { display:flex; overflow-x:auto; }
+  .nav a { min-width:42px; margin:0 2px; }
+  .nav a:not(.active) { font-size:0; }
+  .nav-label,.side-bottom,.mobile-menu { display:none; }
+  main { margin-left:0; padding:20px 14px 45px; }
+  .topbar { margin-bottom:22px; }
+  .upload { flex-wrap:wrap; padding:14px; }
+  .upload-copy { flex-basis:calc(100% - 64px); }
+  .upload .button { flex:1; }
+  .heading { align-items:flex-start; flex-direction:column; }
+  .health-wrap { flex-wrap:wrap; justify-content:center; }
+  .explorer-tools .page-label { margin-left:0; }
+}
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }

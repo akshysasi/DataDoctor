@@ -1,8 +1,10 @@
 from io import BytesIO
 import json
 from secrets import token_hex
+from datetime import datetime
+from math import ceil, isfinite
 
-from flask import Flask, render_template, request, send_file, session
+from flask import Flask, jsonify, render_template, request, send_file, session
 import pandas as pd
 
 from analyzer import (
@@ -22,6 +24,128 @@ app.secret_key = token_hex(32)
 _active_datasets = {}
 
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+
+
+def _now_label():
+    return datetime.now().astimezone().strftime("%b %d, %H:%M")
+
+
+def _apply_cleaning(state, cleaned_df, operation, label):
+    if cleaned_df.equals(state["current"]):
+        return False
+    state["undo"] = state["current"].copy()
+    state["current"] = cleaned_df
+    operation = {**operation, "applied_at": _now_label()}
+    state.setdefault("operations", []).append(operation)
+    state.setdefault("activity", []).append({"label": label, "time": operation["applied_at"]})
+    state["activity"] = state["activity"][-20:]
+    state["revision"] = state.get("revision", 0) + 1
+    state["anomaly_cache"] = None
+    return True
+
+
+def _anomaly_result(state, contamination, run=False):
+    contamination = float(contamination)
+    cache = state.get("anomaly_cache")
+    revision = state.get("revision", 0)
+    if (
+        cache
+        and cache["revision"] == revision
+        and cache["contamination"] == contamination
+    ):
+        return cache
+    if not run:
+        return None
+
+    mask, scores, error = detect_anomalies(state["current"], contamination)
+    cache = {
+        "revision": revision,
+        "contamination": contamination,
+        "mask": mask.to_numpy(dtype=bool).tolist(),
+        "scores": scores.tolist(),
+        "error": error,
+    }
+    state["anomaly_cache"] = cache
+    return cache
+
+
+def _json_value(value):
+    if pd.isna(value):
+        return None
+    if hasattr(value, "isoformat") and not isinstance(value, str):
+        return value.isoformat()
+    if hasattr(value, "item"):
+        value = value.item()
+    if isinstance(value, float) and not isfinite(value):
+        return str(value)
+    if isinstance(value, (int, float, bool, str)):
+        return value
+    return str(value)
+
+
+@app.get("/api/explorer")
+def explorer_data():
+    dataset_id = session.get("dataset_id")
+    state = _active_datasets.get(dataset_id)
+    if state is None:
+        return jsonify({"error": "Upload a CSV to explore its rows."}), 404
+
+    frame = state["current"]
+    query = request.args.get("q", "").strip()[:250]
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except ValueError:
+        page = 1
+    try:
+        page_size = int(request.args.get("page_size", 10))
+    except ValueError:
+        page_size = 10
+    if page_size not in {10, 25, 50}:
+        page_size = 10
+
+    filtered = frame
+    if query:
+        matches = pd.Series(False, index=frame.index, dtype=bool)
+        for column in frame.columns:
+            matches |= frame[column].astype("string").str.contains(
+                query, case=False, regex=False, na=False
+            )
+        filtered = frame.loc[matches]
+
+    total_rows = len(filtered)
+    pages = max(1, ceil(total_rows / page_size))
+    page = min(page, pages)
+    start = (page - 1) * page_size
+    page_frame = filtered.iloc[start:start + page_size]
+    columns = [
+        {
+            "name": str(column),
+            "dtype": str(frame[column].dtype),
+            "missing": int(frame[column].isna().sum()),
+            "unique": int(frame[column].nunique(dropna=True)),
+        }
+        for column in frame.columns
+    ]
+    rows = [
+        {
+            "index": start + offset + 1,
+            "cells": [
+                {"value": _json_value(value), "missing": bool(pd.isna(value))}
+                for value in row
+            ],
+        }
+        for offset, row in enumerate(page_frame.itertuples(index=False, name=None))
+    ]
+    return jsonify({
+        "columns": columns,
+        "rows": rows,
+        "page": page,
+        "pages": pages,
+        "page_size": page_size,
+        "total_rows": total_rows,
+        "dataset_rows": len(frame),
+        "query": query,
+    })
 
 
 def build_cleaning_script(operations):
@@ -134,6 +258,7 @@ def handle_file_too_large(error):
 def index():
     report = None
     error = None
+    notice = None
     filename = None
     preview_columns = []
     preview_rows = []
@@ -180,6 +305,13 @@ def index():
     anomaly_preview_columns = []
     anomaly_preview_rows = []
     anomaly_detection_error = None
+    anomaly_count_available = False
+    anomaly_scores = []
+    quality_distribution = []
+    numeric_summary_rows = []
+    column_profiles = []
+    activity = []
+    is_modified = False
 
     if request.method == "POST":
         uploaded_file = request.files.get("file")
@@ -197,11 +329,14 @@ def index():
                     raise ValueError("Please choose a file with a .csv extension.")
                 filename = uploaded_file.filename
                 df = pd.read_csv(uploaded_file)
+                if len(df.columns) == 0:
+                    raise ValueError("This CSV does not contain a header row.")
                 dataset_id = session.get("dataset_id") or token_hex(16)
                 session["dataset_id"] = dataset_id
                 _active_datasets[dataset_id] = {
                     "original": df.copy(), "current": df.copy(),
                     "undo": None, "filename": filename, "operations": [],
+                    "activity": [], "revision": 0, "anomaly_cache": None,
                 }
             dataset_id = session.get("dataset_id")
             state = _active_datasets.get(dataset_id)
@@ -213,38 +348,48 @@ def index():
                 operations = state.setdefault("operations", [])
                 if action == "apply_duplicates":
                     cleaned = state["current"].drop_duplicates().reset_index(drop=True)
-                    if not cleaned.equals(state["current"].reset_index(drop=True)):
-                        state["undo"] = state["current"].copy()
-                        state["current"] = cleaned
-                        operations.append({"operation": "remove_duplicates"})
+                    removed = len(state["current"]) - len(cleaned)
+                    if _apply_cleaning(state, cleaned, {"operation": "remove_duplicates"}, "Removed duplicate rows"):
+                        notice = f"Removed {removed:,} duplicate row(s)."
+                    else:
+                        notice = "No duplicate rows needed removal."
                 elif action == "apply_missing":
                     cleaned = fill_missing_values(
                         state["current"],
                         numeric_strategy=numeric_strategy,
                     )
-                    if not cleaned.equals(state["current"]):
-                        state["undo"] = state["current"].copy()
-                        state["current"] = cleaned
-                        operations.append({"operation": "fill_missing", "strategy": numeric_strategy})
+                    filled = int(state["current"].isna().sum().sum() - cleaned.isna().sum().sum())
+                    if _apply_cleaning(
+                        state, cleaned,
+                        {"operation": "fill_missing", "strategy": numeric_strategy},
+                        f"Filled missing values using {numeric_strategy}",
+                    ):
+                        notice = f"Filled {filled:,} missing cell(s) using {numeric_strategy}."
+                    else:
+                        notice = "No missing values could be filled in this dataset."
                 elif action == "apply_outliers":
                     outlier_mask = outlier_row_mask(state["current"])
-                    if outlier_mask.any():
-                        state["undo"] = state["current"].copy()
-                        state["current"] = state["current"].loc[~outlier_mask].reset_index(drop=True)
-                        operations.append({"operation": "remove_outliers"})
+                    removed = int(outlier_mask.sum())
+                    cleaned = state["current"].loc[~outlier_mask].reset_index(drop=True)
+                    if _apply_cleaning(state, cleaned, {"operation": "remove_outliers"}, "Removed IQR outlier rows"):
+                        notice = f"Removed {removed:,} row(s) flagged by the IQR check."
+                    else:
+                        notice = "The IQR check did not flag any rows."
                 elif action == "apply_anomalies":
-                    anomaly_mask, _, anomaly_detection_error = detect_anomalies(
-                        state["current"], float(anomaly_contamination)
-                    )
-                    if not anomaly_detection_error and anomaly_mask.any():
-                        state["undo"] = state["current"].copy()
-                        state["current"] = state["current"].loc[~anomaly_mask].reset_index(drop=True)
-                        operations.append({
-                            "operation": "remove_anomalies",
-                            "contamination": float(anomaly_contamination),
-                        })
-                    elif not anomaly_detection_error:
-                        error = "Isolation Forest did not flag any rows with this setting."
+                    anomaly_cache = _anomaly_result(state, anomaly_contamination, run=True)
+                    anomaly_detection_error = anomaly_cache["error"]
+                    if not anomaly_detection_error:
+                        anomaly_mask = pd.Series(anomaly_cache["mask"], index=state["current"].index)
+                        removed = int(anomaly_mask.sum())
+                        cleaned = state["current"].loc[~anomaly_mask].reset_index(drop=True)
+                        if _apply_cleaning(
+                            state, cleaned,
+                            {"operation": "remove_anomalies", "contamination": float(anomaly_contamination)},
+                            "Removed Isolation Forest anomaly rows",
+                        ):
+                            notice = f"Removed {removed:,} row(s) flagged by Isolation Forest."
+                        else:
+                            notice = "Isolation Forest did not flag any rows with this setting."
 
                 elif action == "apply_type":
                     if type_column not in state["current"].columns:
@@ -253,19 +398,19 @@ def index():
                         proposed_df, invalid_count = convert_column_type(
                             state["current"], type_column, type_target
                         )
-                    if type_column in state["current"].columns and invalid_count:
-                        error = (
-                            f"Conversion stopped: {invalid_count} non-empty value(s) "
-                            "cannot be converted. Review the preview first."
-                        )
-                    elif type_column in state["current"].columns and not proposed_df.equals(state["current"]):
-                        state["undo"] = state["current"].copy()
-                        state["current"] = proposed_df
-                        operations.append({
-                            "operation": "convert_type",
-                            "column": str(type_column),
-                            "target_type": type_target,
-                        })
+                        if invalid_count:
+                            error = (
+                                f"Conversion stopped: {invalid_count} non-empty value(s) "
+                                "cannot be converted. Review the preview first."
+                            )
+                        elif _apply_cleaning(
+                            state, proposed_df,
+                            {"operation": "convert_type", "column": str(type_column), "target_type": type_target},
+                            f"Converted {type_column} to {type_target}",
+                        ):
+                            notice = f"Converted {type_column} to {type_target}."
+                        else:
+                            notice = f"{type_column} already matches {type_target}."
                 elif action == "apply_standardize":
                     try:
                         proposed_df, changed_count = standardize_category_values(
@@ -275,27 +420,43 @@ def index():
                         error = str(exc)
                     else:
                         if changed_count:
-                            state["undo"] = state["current"].copy()
-                            state["current"] = proposed_df
-                            operations.append({
-                                "operation": "standardize_category",
-                                "column": str(category_column),
-                                "mode": category_mode,
-                            })
+                            _apply_cleaning(
+                                state, proposed_df,
+                                {"operation": "standardize_category", "column": str(category_column), "mode": category_mode},
+                                f"Standardized {category_column} ({category_mode})",
+                            )
+                            notice = f"Standardized {changed_count:,} value(s) in {category_column}."
                         else:
-                            error = "No values in this column need standardization."
+                            notice = "No values in this column needed standardization."
                 elif action in {"undo_duplicates", "undo_operation"} and state["undo"] is not None:
                     state["current"] = state["undo"]
                     state["undo"] = None
                     if operations:
-                        operations.pop()
+                        undone = operations.pop()
+                    else:
+                        undone = {"operation": "last cleaning action"}
+                    state["revision"] = state.get("revision", 0) + 1
+                    state["anomaly_cache"] = None
+                    state.setdefault("activity", []).append({
+                        "label": f"Undid {undone.get('operation', 'last cleaning action').replace('_', ' ')}",
+                        "time": _now_label(),
+                    })
+                    state["activity"] = state["activity"][-20:]
+                    notice = "Undid the last cleaning action."
                 elif action == "reset_dataset":
                     state["current"] = state["original"].copy()
                     state["undo"] = None
                     operations.clear()
+                    state["revision"] = state.get("revision", 0) + 1
+                    state["anomaly_cache"] = None
+                    state.setdefault("activity", []).append({"label": "Reset to uploaded data", "time": _now_label()})
+                    state["activity"] = state["activity"][-20:]
+                    notice = "Reset the active dataset to the uploaded data."
 
                 active_df = state["current"]
                 original_df = state["original"]
+                activity = list(reversed(state.get("activity", [])[-6:]))
+                is_modified = not active_df.equals(original_df)
                 type_columns = active_df.columns.tolist()
                 category_columns = [
                     column for column in active_df.columns
@@ -306,12 +467,34 @@ def index():
                 duplicate_rows = int(active_df.duplicated().sum())
                 outlier_mask = outlier_row_mask(active_df)
                 outlier_rows_count = int(outlier_mask.sum())
-                anomaly_mask, anomaly_scores, anomaly_detection_error = detect_anomalies(
-                    active_df, float(anomaly_contamination)
+                anomaly_cache = _anomaly_result(
+                    state, anomaly_contamination,
+                    run=action in {"preview_anomalies", "apply_anomalies"},
                 )
-                anomaly_rows_count = int(anomaly_mask.sum())
+                if anomaly_cache:
+                    anomaly_count_available = not anomaly_cache["error"]
+                    anomaly_detection_error = anomaly_cache["error"]
+                    anomaly_rows_count = sum(anomaly_cache["mask"])
+                    anomaly_scores = anomaly_cache["scores"]
+                    anomaly_mask = pd.Series(anomaly_cache["mask"], index=active_df.index)
                 can_undo = state["undo"] is not None
+                missing_cells = int(active_df.isna().sum().sum())
                 report = analyze_dataset(active_df)
+                quality_distribution = [
+                    {"label": "Complete cells", "value": max(0, active_df.size - missing_cells), "color": "#2dd4bf"},
+                    {"label": "Missing cells", "value": missing_cells, "color": "#f59e0b"},
+                ]
+                numeric_summary_rows = [
+                    {"column": str(column), "mean": float(active_df[column].mean()), "median": float(active_df[column].median())}
+                    for column in active_df.select_dtypes(include="number").columns[:6]
+                    if active_df[column].notna().any()
+                ]
+                column_profiles = [
+                    {"name": str(column), "dtype": str(active_df[column].dtype),
+                     "missing": int(active_df[column].isna().sum()),
+                     "unique": int(active_df[column].nunique(dropna=True))}
+                    for column in active_df.columns
+                ]
                 preview_columns = active_df.columns.tolist()
                 preview_rows = active_df.head(10).to_dict(orient="records")
                 duplicate_preview = active_df.loc[active_df.duplicated(keep="first")]
@@ -434,12 +617,30 @@ def index():
         ]
         duplicate_rows = int(active_df.duplicated().sum())
         outlier_rows_count = int(outlier_row_mask(active_df).sum())
-        anomaly_mask, _, anomaly_detection_error = detect_anomalies(
-            active_df, float(anomaly_contamination)
-        )
-        anomaly_rows_count = int(anomaly_mask.sum())
+        anomaly_cache = _anomaly_result(state, anomaly_contamination)
+        if anomaly_cache:
+            anomaly_count_available = not anomaly_cache["error"]
+            anomaly_detection_error = anomaly_cache["error"]
+            anomaly_rows_count = sum(anomaly_cache["mask"])
         can_undo = state["undo"] is not None
         report = analyze_dataset(active_df)
+        activity = list(reversed(state.get("activity", [])[-6:]))
+        is_modified = not active_df.equals(original_df)
+        quality_distribution = [
+            {"label": "Complete cells", "value": max(0, active_df.size - missing_cells), "color": "#2dd4bf"},
+            {"label": "Missing cells", "value": missing_cells, "color": "#f59e0b"},
+        ]
+        numeric_summary_rows = [
+            {"column": str(column), "mean": float(active_df[column].mean()), "median": float(active_df[column].median())}
+            for column in active_df.select_dtypes(include="number").columns[:6]
+            if active_df[column].notna().any()
+        ]
+        column_profiles = [
+            {"name": str(column), "dtype": str(active_df[column].dtype),
+             "missing": int(active_df[column].isna().sum()),
+             "unique": int(active_df[column].nunique(dropna=True))}
+            for column in active_df.columns
+        ]
         preview_columns = active_df.columns.tolist()
         preview_rows = active_df.head(10).to_dict(orient="records")
         duplicate_preview = active_df.loc[active_df.duplicated(keep="first")]
@@ -498,9 +699,16 @@ def index():
         anomaly_preview_columns=anomaly_preview_columns,
         anomaly_preview_rows=anomaly_preview_rows,
         anomaly_detection_error=anomaly_detection_error,
+        notice=notice,
+        anomaly_count_available=anomaly_count_available,
+        quality_distribution=quality_distribution,
+        numeric_summary_rows=numeric_summary_rows,
+        column_profiles=column_profiles,
+        activity=activity,
+        is_modified=is_modified,
     )
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
 
